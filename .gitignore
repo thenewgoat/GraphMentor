@@ -1,0 +1,6 @@
+# Generated documentation (authored by Claude during design sessions)
+docs/
+
+# Claude Code
+.claude/
+CLAUDE.md
