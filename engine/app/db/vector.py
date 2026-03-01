@@ -20,5 +20,5 @@ def get_chroma_client() -> chromadb.ClientAPI:
 
 def get_or_create_collection(course_id: str) -> chromadb.Collection:
     client = get_chroma_client()
-    collection_name = f"course_{course_id.replace('-', '')}_chunks"
+    collection_name = f"course_{course_id.replace('-', '')}_sentences"
     return client.get_or_create_collection(name=collection_name)
