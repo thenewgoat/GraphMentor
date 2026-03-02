@@ -1,3 +1,4 @@
+"""Tests for ingestion pipeline: course creation, pages, and duplicate detection."""
 import hashlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch

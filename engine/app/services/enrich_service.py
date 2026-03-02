@@ -1,3 +1,4 @@
+"""Stage 3: Enrich thin nodes via Wikipedia search and LLM summarization."""
 import logging
 from uuid import UUID
 

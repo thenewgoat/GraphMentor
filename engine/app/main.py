@@ -1,3 +1,4 @@
+"""FastAPI application with CORS, health check, and router registration."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text

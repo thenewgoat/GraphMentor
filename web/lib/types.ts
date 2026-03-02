@@ -1,3 +1,5 @@
+/** Shared TypeScript types mirroring backend models and API responses. */
+
 // === Enums / Union Types ===
 
 export type EdgeType = "prerequisite" | "related";

@@ -1,3 +1,4 @@
+"""Node and NodeEdge models for the knowledge graph DAG."""
 import uuid
 from datetime import datetime, timezone
 

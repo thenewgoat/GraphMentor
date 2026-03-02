@@ -1,4 +1,4 @@
-# engine/tests/test_llm_client.py
+"""Tests for LLM client methods with mocked OpenAI JSON responses."""
 import json
 from unittest.mock import MagicMock, patch
 

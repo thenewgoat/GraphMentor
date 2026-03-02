@@ -1,3 +1,4 @@
+"""Pytest fixtures: test DB engine, transactional session with SAVEPOINT rollback."""
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker

@@ -1,3 +1,4 @@
+"""Hard and soft validators for LLM outputs with cycle detection and repair."""
 import logging
 from collections import defaultdict
 

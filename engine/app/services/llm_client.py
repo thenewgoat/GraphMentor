@@ -1,4 +1,4 @@
-# engine/app/services/llm_client.py
+"""OpenAI chat completions wrapper with JSON prompts for all pipeline stages."""
 import json
 import logging
 

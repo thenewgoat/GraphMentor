@@ -1,3 +1,4 @@
+"""Abstract base class for PDF content extractors."""
 from abc import ABC, abstractmethod
 from pathlib import Path
 

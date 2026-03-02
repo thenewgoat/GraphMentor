@@ -1,3 +1,4 @@
+/** Node detail sidebar — depth, prerequisites, pages, supplementary content, delete. */
 "use client";
 
 import { useState, useCallback } from "react";

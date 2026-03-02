@@ -1,3 +1,4 @@
+"""CRUD endpoints for courses, nodes, edges, documents, and references."""
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException

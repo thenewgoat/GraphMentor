@@ -1,3 +1,4 @@
+"""Tests for course, graph, documents, references, nodes, and edges endpoints."""
 import uuid
 
 import pytest

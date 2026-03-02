@@ -1,3 +1,4 @@
+"""ChromaDB client singleton and per-course vector collection factory."""
 import chromadb
 
 from app.config import settings

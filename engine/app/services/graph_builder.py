@@ -1,4 +1,4 @@
-# engine/app/services/graph_builder.py
+"""Stages 1+2: LLM topic extraction and incremental merge into knowledge graph."""
 import logging
 from collections import defaultdict
 from uuid import UUID

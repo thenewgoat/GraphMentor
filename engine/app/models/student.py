@@ -1,3 +1,4 @@
+"""Student and StudentNodeState models for learning progress tracking."""
 import uuid
 from datetime import datetime, timezone
 

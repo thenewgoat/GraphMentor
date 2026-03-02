@@ -1,3 +1,4 @@
+/** Root layout — Geist fonts, Navbar, and centered main content. */
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";

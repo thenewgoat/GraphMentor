@@ -1,3 +1,4 @@
+"""Stage 0: Upload PDF, extract pages, embed in ChromaDB, store in Postgres."""
 import hashlib
 import logging
 import shutil

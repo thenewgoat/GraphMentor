@@ -1,3 +1,4 @@
+/** Document list — shows uploaded docs with extract button per document. */
 "use client";
 
 import { useEffect, useState } from "react";

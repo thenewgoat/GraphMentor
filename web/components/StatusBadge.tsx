@@ -1,3 +1,4 @@
+/** Colored pill badge showing ingestion status. */
 import { IngestionStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<IngestionStatus, string> = {

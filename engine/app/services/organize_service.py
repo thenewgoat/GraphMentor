@@ -1,3 +1,4 @@
+"""Stage 4: LLM-assisted graph reorganization (merge, split, reorder, reparent)."""
 import logging
 from uuid import UUID
 

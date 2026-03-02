@@ -1,3 +1,4 @@
+/** Graph editor page — interactive DAG canvas with node sidebar. */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";

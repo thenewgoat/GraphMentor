@@ -1,3 +1,4 @@
+"""PyMuPDF-based PDF slide extractor with heuristic title detection."""
 import logging
 from pathlib import Path
 

@@ -1,3 +1,4 @@
+/** Top navigation bar with app title link. */
 import Link from "next/link";
 
 export default function Navbar() {

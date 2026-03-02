@@ -1,3 +1,4 @@
+"""Tests for PDF upload endpoint with mock pipeline and file validation."""
 import fitz
 from pathlib import Path
 from unittest.mock import patch, MagicMock

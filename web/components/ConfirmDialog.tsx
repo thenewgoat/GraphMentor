@@ -1,3 +1,4 @@
+/** Modal confirmation dialog with cancel and delete actions. */
 interface ConfirmDialogProps {
   message: string;
   onConfirm: () => void;

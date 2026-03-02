@@ -1,3 +1,4 @@
+"""Tests for node and edge CRUD endpoints with cascade and validation."""
 import uuid
 
 import pytest

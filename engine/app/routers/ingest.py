@@ -1,3 +1,4 @@
+"""PDF upload endpoint with temp-file handling and pipeline execution."""
 import tempfile
 from pathlib import Path
 from uuid import UUID

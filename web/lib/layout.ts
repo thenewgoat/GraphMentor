@@ -1,3 +1,4 @@
+/** Dagre-based top-down auto-layout for React Flow graphs. */
 import dagre from "dagre";
 import { Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 

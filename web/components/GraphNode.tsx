@@ -1,3 +1,4 @@
+/** Custom React Flow node — inline rename on double-click, depth label. */
 import { memo, useState, useCallback } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 

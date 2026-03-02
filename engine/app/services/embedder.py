@@ -1,3 +1,4 @@
+"""OpenAI embeddings client with batched text-embedding API calls."""
 import logging
 
 from openai import OpenAI

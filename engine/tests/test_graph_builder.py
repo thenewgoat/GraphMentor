@@ -1,4 +1,4 @@
-# engine/tests/test_graph_builder.py
+"""Tests for fresh graph creation and multi-document merge with mocked LLM."""
 import hashlib
 import uuid
 from unittest.mock import MagicMock, patch

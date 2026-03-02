@@ -1,3 +1,4 @@
+/** Course detail page — documents, references, enrich, and organize actions. */
 "use client";
 
 import { useEffect, useState } from "react";

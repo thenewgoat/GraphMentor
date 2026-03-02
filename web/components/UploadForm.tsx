@@ -1,3 +1,4 @@
+/** PDF upload form — course selector, title input, file picker, submit. */
 "use client";
 
 import { useEffect, useState } from "react";

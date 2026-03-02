@@ -1,3 +1,4 @@
+/** React Flow canvas — renders DAG with node CRUD and edge connections. */
 "use client";
 
 import { useCallback, useMemo } from "react";

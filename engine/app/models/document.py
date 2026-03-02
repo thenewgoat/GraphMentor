@@ -1,3 +1,4 @@
+"""Document, Page, NodePage, and Reference models for multi-doc ingestion."""
 import uuid
 from datetime import datetime, timezone
 

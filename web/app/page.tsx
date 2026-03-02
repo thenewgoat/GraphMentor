@@ -1,3 +1,4 @@
+/** Home page — course list with upload link. */
 "use client";
 
 import { useEffect, useState } from "react";

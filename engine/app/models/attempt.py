@@ -1,3 +1,4 @@
+"""Question and Attempt models for student assessment tracking."""
 import uuid
 from datetime import datetime, timezone
 

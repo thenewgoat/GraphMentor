@@ -1,3 +1,4 @@
+/** Reference list — CRUD for book/URL references attached to a course. */
 "use client";
 
 import { useEffect, useState } from "react";

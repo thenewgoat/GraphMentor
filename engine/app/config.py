@@ -1,3 +1,4 @@
+"""Pydantic settings for database, ChromaDB, and LLM configuration."""
 from pydantic_settings import BaseSettings
 
 

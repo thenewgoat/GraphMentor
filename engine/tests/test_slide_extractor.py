@@ -1,3 +1,4 @@
+"""Tests for PDF slide extraction, title detection, and file validation."""
 import fitz  # pymupdf
 from pathlib import Path
 import tempfile

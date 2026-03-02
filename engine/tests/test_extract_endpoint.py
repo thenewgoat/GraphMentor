@@ -1,3 +1,4 @@
+"""Tests for topic extraction and enrichment endpoints with mocked LLM."""
 import uuid
 from unittest.mock import MagicMock, patch
 

@@ -1,3 +1,4 @@
+"""Tests for OpenAI embedder batching and mock behavior."""
 from unittest.mock import MagicMock, patch
 
 from app.services.embedder import OpenAIEmbedder

@@ -1,3 +1,4 @@
+"""Endpoints for topic extraction, enrichment, and graph organization."""
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -1,3 +1,4 @@
+"""Dataclasses for Slide and RawSentence extraction results."""
 from dataclasses import dataclass
 
 

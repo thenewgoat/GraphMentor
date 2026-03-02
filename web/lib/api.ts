@@ -1,3 +1,4 @@
+/** API client — typed fetch wrappers for all backend endpoints. */
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

@@ -1,3 +1,4 @@
+"""Tests for topic, merge, and dependency validators with cycle detection."""
 import pytest
 
 from app.services.validators import TopicValidator, DependencyValidator, MergeValidator, ValidationError

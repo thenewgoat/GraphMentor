@@ -1,3 +1,4 @@
+/** Tailwind CSS configuration — content paths and theme extensions. */
 import type { Config } from "tailwindcss";
 
 const config: Config = {

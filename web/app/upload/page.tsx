@@ -1,3 +1,4 @@
+/** Upload page — PDF upload form with back navigation. */
 import UploadForm from "@/components/UploadForm";
 import Link from "next/link";
 

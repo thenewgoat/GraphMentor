@@ -1,3 +1,4 @@
+/** Course card — title, description, status badge, and link to detail. */
 import Link from "next/link";
 import { Course } from "@/lib/types";
 import StatusBadge from "./StatusBadge";

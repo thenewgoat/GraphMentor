@@ -1,3 +1,4 @@
+"""Course model with ingestion status and learning parameters."""
 import uuid
 from datetime import datetime, timezone
 

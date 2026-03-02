@@ -1,3 +1,4 @@
+"""Public re-exports for all SQLAlchemy ORM models."""
 from app.models.course import Course
 from app.models.node import Node, NodeEdge
 from app.models.student import Student, StudentNodeState
