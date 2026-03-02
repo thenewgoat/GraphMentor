@@ -2,7 +2,7 @@
 
 export type EdgeType = "prerequisite" | "related";
 export type LearningState = "baseline" | "learning" | "review" | "exam";
-export type IngestionStatus = "pending" | "processing" | "complete" | "failed";
+export type IngestionStatus = "pending" | "processing" | "complete" | "failed" | "graph_ready";
 export type QuestionType = "multiple_choice" | "short_answer";
 export type Difficulty = "easy" | "medium" | "hard";
 export type AttemptContext = "baseline" | "quiz" | "exam";

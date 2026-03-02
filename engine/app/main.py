@@ -1,14 +1,23 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.db.postgres import engine as db_engine
 from app.db.vector import get_chroma_client
 from app.routers.ingest import router as ingest_router
 from app.routers.extract import router as extract_router
+from app.routers.courses import router as courses_router
 
 app = FastAPI(title="GraphMentor Engine", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(ingest_router)
 app.include_router(extract_router)
+app.include_router(courses_router)
 
 
 @app.get("/health")
