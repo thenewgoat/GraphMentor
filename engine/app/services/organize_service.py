@@ -39,9 +39,13 @@ class OrganizeService:
                 "depth": n.depth,
                 "order_index": n.order_index,
                 "page_ids": page_ids,
-                "prerequisites": [
-                    str(e.parent_id) for e in edges
-                    if e.child_id == n.id and e.edge_type == "prerequisite"
+                "edges_in": [
+                    {"from": next((nd.title for nd in nodes if nd.id == e.parent_id), str(e.parent_id)), "type": e.edge_type}
+                    for e in edges if e.child_id == n.id
+                ],
+                "edges_out": [
+                    {"to": next((nd.title for nd in nodes if nd.id == e.child_id), str(e.child_id)), "type": e.edge_type}
+                    for e in edges if e.parent_id == n.id
                 ],
             })
 

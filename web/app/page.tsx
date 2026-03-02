@@ -27,7 +27,7 @@ export default function Home() {
           href="/upload"
           className="rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
         >
-          Upload PDF
+          New Course
         </Link>
       </div>
 

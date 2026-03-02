@@ -1,7 +1,7 @@
 /** React Flow canvas — renders DAG with node CRUD and edge connections. */
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -19,7 +19,7 @@ import "@xyflow/react/dist/style.css";
 
 import GraphNode from "./GraphNode";
 import { GraphData } from "@/lib/api";
-import { applyDagreLayout } from "@/lib/layout";
+import { applyElkLayout } from "@/lib/layout";
 
 import * as api from "@/lib/api";
 
@@ -32,7 +32,16 @@ interface GraphCanvasProps {
 
 const nodeTypes = { topic: GraphNode };
 
-function toReactFlowData(
+const EDGE_STYLES: Record<string, { color: string; dash?: string; animated?: boolean }> = {
+  prerequisite: { color: "#3b82f6", animated: true },
+  subtopic: { color: "#6b7280" },
+  method_of: { color: "#22c55e", dash: "5 5" },
+  motivation: { color: "#f97316", dash: "5 5" },
+  application: { color: "#a855f7", dash: "8 4" },
+  related: { color: "#6b7280", dash: "3 3" },
+};
+
+function toReactFlowElements(
   graphData: GraphData,
   onRename: (id: string, title: string) => void,
 ) {
@@ -43,16 +52,24 @@ function toReactFlowData(
     data: { label: n.title, depth: n.depth, onRename },
   }));
 
-  const edges: RFEdge[] = graphData.edges.map((e) => ({
-    id: `${e.parent_id}-${e.child_id}`,
-    source: e.parent_id,
-    target: e.child_id,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    style: e.edge_type === "related" ? { strokeDasharray: "5 5" } : undefined,
-    animated: e.edge_type === "prerequisite",
-  }));
+  const edges: RFEdge[] = graphData.edges.map((e) => {
+    const style = EDGE_STYLES[e.edge_type] ?? EDGE_STYLES.related;
+    return {
+      id: `${e.parent_id}-${e.child_id}`,
+      source: e.parent_id,
+      target: e.child_id,
+      label: e.edge_type.replace("_", " "),
+      labelStyle: { fontSize: 10, fill: style.color },
+      markerEnd: { type: MarkerType.ArrowClosed, color: style.color },
+      style: {
+        stroke: style.color,
+        strokeDasharray: style.dash,
+      },
+      animated: style.animated ?? false,
+    };
+  });
 
-  return applyDagreLayout(nodes, edges);
+  return { nodes, edges };
 }
 
 export default function GraphCanvas({
@@ -69,13 +86,21 @@ export default function GraphCanvas({
     [courseId, onGraphChange],
   );
 
-  const initial = useMemo(
-    () => toReactFlowData(graphData, handleRename),
+  const elements = useMemo(
+    () => toReactFlowElements(graphData, handleRename),
     [graphData, handleRename],
   );
 
-  const [nodes, , onNodesChange] = useNodesState(initial.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(elements.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(elements.edges);
+
+  // Run async ELK layout when graph data changes
+  useEffect(() => {
+    applyElkLayout(elements.nodes, elements.edges).then(({ nodes: laid, edges: laidEdges }) => {
+      setNodes(laid);
+      setEdges(laidEdges);
+    });
+  }, [elements, setNodes, setEdges]);
 
   const onConnect = useCallback(
     async (connection: Connection) => {

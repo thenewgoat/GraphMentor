@@ -89,7 +89,8 @@ class NodeEdge(Base):
     __table_args__ = (
         CheckConstraint("parent_id != child_id", name="chk_no_self_loop"),
         CheckConstraint(
-            "edge_type IN ('prerequisite', 'related')", name="chk_edge_type"
+            "edge_type IN ('prerequisite', 'related', 'subtopic', 'method_of', 'motivation', 'application')",
+            name="chk_edge_type",
         ),
         Index("idx_node_edges_child", "child_id"),
     )

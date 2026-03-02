@@ -21,7 +21,7 @@ class GraphBuilder:
         self.db = db
         self.llm = LLMClient(api_key=openai_api_key, model=model)
 
-    def run(self, course_id: UUID, document_id: UUID, max_depth: int = 3) -> dict:
+    def run(self, course_id: UUID, document_id: UUID, max_depth: int = 7) -> dict:
         course = self.db.query(Course).filter_by(id=course_id).first()
         if not course:
             raise ValueError(f"Course {course_id} not found")

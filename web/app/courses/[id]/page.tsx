@@ -2,20 +2,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Course } from "@/lib/types";
-import { getCourse, enrichCourse, organizeCourse, applyOrganization } from "@/lib/api";
+import { getCourse, deleteCourse, enrichCourse, organizeCourse, applyOrganization } from "@/lib/api";
 import type { OrganizeSuggestion } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import DocumentList from "@/components/DocumentList";
 import ReferenceList from "@/components/ReferenceList";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 type Tab = "documents" | "references";
 
 export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.id as string;
+  const router = useRouter();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,9 @@ export default function CourseDetailPage() {
   const [organizing, setOrganizing] = useState(false);
   const [suggestions, setSuggestions] = useState<OrganizeSuggestion[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<string | null>(null);
+  const [applyResult, setApplyResult] = useState<string | null>(null);
 
   function refreshCourse() {
     getCourse(courseId)
@@ -40,8 +45,7 @@ export default function CourseDetailPage() {
     setError(null);
     try {
       const result = await enrichCourse(courseId);
-      setError(null);
-      alert(`Enriched ${result.nodes_enriched} nodes, skipped ${result.nodes_skipped}.`);
+      setEnrichResult(`Enriched ${result.nodes_enriched} nodes, skipped ${result.nodes_skipped}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Enrichment failed");
     } finally {
@@ -67,7 +71,7 @@ export default function CourseDetailPage() {
     if (selectedSuggestions.size === 0) return;
     try {
       const result = await applyOrganization(courseId, Array.from(selectedSuggestions));
-      alert(`Applied ${result.applied} suggestions.`);
+      setApplyResult(`Applied ${result.applied} suggestions.`);
       setSuggestions([]);
       refreshCourse();
     } catch (err) {
@@ -82,6 +86,16 @@ export default function CourseDetailPage() {
       else next.add(id);
       return next;
     });
+  }
+
+  async function handleDeleteCourse() {
+    setConfirmDelete(false);
+    try {
+      await deleteCourse(courseId);
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
   }
 
   if (loading) return <p className="text-neutral-500">Loading...</p>;
@@ -105,7 +119,15 @@ export default function CourseDetailPage() {
             <p className="mt-1 text-neutral-500">{course.description}</p>
           )}
         </div>
-        <StatusBadge status={course.ingestion_status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={course.ingestion_status} />
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+          >
+            Delete Course
+          </button>
+        </div>
       </div>
 
       {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
@@ -136,6 +158,13 @@ export default function CourseDetailPage() {
           </>
         )}
       </div>
+
+      {enrichResult && (
+        <p className="mb-4 text-sm text-green-700 dark:text-green-400">{enrichResult}</p>
+      )}
+      {applyResult && (
+        <p className="mb-4 text-sm text-green-700 dark:text-green-400">{applyResult}</p>
+      )}
 
       {suggestions.length > 0 && (
         <div className="mb-6 rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
@@ -203,6 +232,13 @@ export default function CourseDetailPage() {
           {tab === "references" && <ReferenceList courseId={courseId} />}
         </div>
       </div>
+      {confirmDelete && (
+        <ConfirmDialog
+          message={`Delete "${course.title}"? All documents, nodes, and embeddings will be permanently removed.`}
+          onConfirm={handleDeleteCourse}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
   );
 }

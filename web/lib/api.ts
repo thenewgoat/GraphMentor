@@ -45,7 +45,14 @@ export interface GraphData {
 
 // Courses
 export const getCourses = () => request<Course[]>("/courses");
+export const createCourse = (title: string) =>
+  request<Course>("/courses", {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
 export const getCourse = (id: string) => request<Course>(`/courses/${id}`);
+export const deleteCourse = (courseId: string) =>
+  request<void>(`/courses/${courseId}`, { method: "DELETE" });
 export const getGraph = (courseId: string) =>
   request<GraphData>(`/courses/${courseId}/graph`);
 

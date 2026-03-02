@@ -185,6 +185,18 @@ class TestDependencyValidator:
         result = validator.validate(data)
         assert len(result["edges"]) == 0
 
+    def test_new_edge_types_pass(self):
+        data = {
+            "edges": [
+                {"from_title": "Basics", "to_title": "Intermediate", "edge_type": "subtopic", "reasoning": "Sub-topic relationship."},
+                {"from_title": "Basics", "to_title": "Advanced", "edge_type": "method_of", "reasoning": "Method used in Advanced."},
+                {"from_title": "Advanced", "to_title": "Final", "edge_type": "motivation", "reasoning": "Motivates Final topic."},
+            ]
+        }
+        validator = DependencyValidator(topics=_topics_for_deps())
+        result = validator.validate(data)
+        assert len(result["edges"]) == 3
+
     def test_max_three_prerequisites_enforced(self):
         data = {
             "edges": [

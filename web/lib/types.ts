@@ -2,7 +2,7 @@
 
 // === Enums / Union Types ===
 
-export type EdgeType = "prerequisite" | "related";
+export type EdgeType = "prerequisite" | "related" | "subtopic" | "method_of" | "motivation" | "application";
 export type LearningState = "baseline" | "learning" | "review" | "exam";
 export type IngestionStatus = "pending" | "processing" | "complete" | "failed" | "graph_ready";
 export type QuestionType = "multiple_choice" | "short_answer";

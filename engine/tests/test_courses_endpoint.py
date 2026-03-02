@@ -318,3 +318,51 @@ class TestDeleteDocumentEndpoint:
 
         response = client.delete(f"/courses/{course2.id}/documents/{doc.id}")
         assert response.status_code == 404
+
+
+class TestDeleteCourseEndpoint:
+    def test_delete_course_returns_204(self, client, db):
+        course = Course(title="To Delete")
+        db.add(course)
+        db.flush()
+
+        doc = Document(
+            course_id=course.id, title="Lec", filename="l.pdf",
+            file_path="/tmp/l.pdf", file_hash="delcourse001", upload_order=1,
+            page_count=1, ingestion_status="complete",
+        )
+        db.add(doc)
+        db.flush()
+
+        page = Page(
+            document_id=doc.id, course_id=course.id,
+            page_number=1, global_page=1,
+            slide_title="S1", body="Content",
+        )
+        db.add(page)
+        db.flush()
+
+        node = Node(course_id=course.id, title="Topic", depth=1, order_index=0)
+        db.add(node)
+        db.flush()
+
+        np = NodePage(node_id=node.id, page_id=page.id)
+        db.add(np)
+        db.flush()
+
+        with patch("app.routers.courses.delete_embeddings") as mock_del:
+            response = client.delete(f"/courses/{course.id}")
+
+        assert response.status_code == 204
+
+        # Everything should be gone
+        assert db.query(Course).filter_by(id=course.id).first() is None
+        assert db.query(Document).filter_by(course_id=course.id).all() == []
+        assert db.query(Node).filter_by(course_id=course.id).all() == []
+
+        # Embeddings cleanup was called
+        mock_del.assert_called_once()
+
+    def test_delete_course_not_found(self, client):
+        response = client.delete(f"/courses/{uuid.uuid4()}")
+        assert response.status_code == 404

@@ -94,7 +94,7 @@ class NodePage(Base):
         primary_key=True,
     )
 
-    node = relationship("Node", backref="node_pages")
+    node = relationship("Node", backref=backref("node_pages", passive_deletes=True))
     page = relationship("Page", backref=backref("node_pages", passive_deletes=True))
 
 

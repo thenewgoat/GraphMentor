@@ -26,7 +26,7 @@ class TestExtractEndpoint:
         mock_builder_class.return_value = mock_builder
 
         doc_id = uuid.uuid4()
-        response = client.post(f"/extract/topics/{uuid.uuid4()}?document_id={doc_id}&max_depth=3")
+        response = client.post(f"/extract/topics/{uuid.uuid4()}?document_id={doc_id}&max_depth=7")
         assert response.status_code == 201
         body = response.json()
         assert body["nodes_created"] == 5

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/extract", tags=["extraction"])
 def extract_topics(
     course_id: UUID,
     document_id: UUID | None = None,
-    max_depth: int = 3,
+    max_depth: int = 7,
     db: Session = Depends(get_db),
 ):
     if document_id is None:

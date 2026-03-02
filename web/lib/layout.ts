@@ -1,34 +1,50 @@
-/** Dagre-based top-down auto-layout for React Flow graphs. */
-import dagre from "dagre";
+/** ELK-based hierarchical auto-layout for React Flow graphs. */
+import ELK, { ElkNode, ElkExtendedEdge } from "elkjs/lib/elk.bundled.js";
 import { Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 50;
 
-export function applyDagreLayout(
+const elk = new ELK();
+
+export async function applyElkLayout(
   nodes: RFNode[],
   edges: RFEdge[],
-): { nodes: RFNode[]; edges: RFEdge[] } {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 40 });
+): Promise<{ nodes: RFNode[]; edges: RFEdge[] }> {
+  const elkNodes: ElkNode[] = nodes.map((n) => ({
+    id: n.id,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
+  }));
 
-  nodes.forEach((node) => {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  });
-  edges.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
+  const elkEdges: ElkExtendedEdge[] = edges.map((e) => ({
+    id: e.id,
+    sources: [e.source],
+    targets: [e.target],
+  }));
+
+  const graph = await elk.layout({
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "DOWN",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+      "elk.spacing.nodeNode": "40",
+      "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+    },
+    children: elkNodes,
+    edges: elkEdges,
   });
 
-  dagre.layout(g);
+  const posMap = new Map<string, { x: number; y: number }>();
+  for (const child of graph.children ?? []) {
+    posMap.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
+  }
 
-  const layoutNodes = nodes.map((node) => {
-    const pos = g.node(node.id);
-    return {
-      ...node,
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
-    };
-  });
+  const layoutNodes = nodes.map((n) => ({
+    ...n,
+    position: posMap.get(n.id) ?? { x: 0, y: 0 },
+  }));
 
   return { nodes: layoutNodes, edges };
 }

@@ -50,11 +50,17 @@ DEPENDENCY_INFERENCE_USER = """Topics extracted from lecture material:
 {topics_json}
 ---
 
-Determine the prerequisite and related edges between these topics. Follow these rules:
+Determine the edges between these topics. Follow these rules:
 
-1. A "prerequisite" edge from Topic A to Topic B means: "A student must understand Topic A before they can learn Topic B." Only create prerequisite edges where there is a clear logical dependency — Topic B's content fundamentally relies on concepts from Topic A.
+1. Edge types — use the most specific type that applies:
+   - "prerequisite": Topic A must be understood before Topic B can be learned. There is a clear logical dependency.
+   - "subtopic": Topic A is a parent/container and Topic B is a child/component. Use for hierarchy reinforcement.
+   - "method_of": Topic B is a technique, method, or approach used within the broader area of Topic A.
+   - "motivation": Topic B provides context, rationale, or real-world motivation for why Topic A matters.
+   - "application": Topic B is a practical application or use case of Topic A's concepts.
+   - "related": Topics are conceptually connected but don't fit the above categories. Use sparingly.
 
-2. A "related" edge means: "These topics are conceptually connected, but understanding one is not strictly required before learning the other." Use related edges sparingly — only when there is a meaningful connection that would help a student see the bigger picture.
+2. Edge type priority: prefer specific types (method_of, motivation, application, subtopic) over generic "related". Only use "related" when no other type fits.
 
 3. Prefer FEWER, STRONGER edges over many weak ones. Not every pair of topics needs an edge. If in doubt, do not create the edge.
 
@@ -71,7 +77,7 @@ Determine the prerequisite and related edges between these topics. Follow these 
 9. Use the exact topic titles from the input. Do not rename or abbreviate them.
 
 Respond in the required JSON format:
-{{"edges": [{{"from_title": "string", "to_title": "string", "edge_type": "prerequisite or related", "reasoning": "string"}}]}}"""
+{{"edges": [{{"from_title": "string", "to_title": "string", "edge_type": "prerequisite|subtopic|method_of|motivation|application|related", "reasoning": "string"}}]}}"""
 
 MERGE_DECISION_SYSTEM = """You are a curriculum analyst. Given an existing knowledge graph and newly extracted topics from a new lecture document, decide how to merge the new topics into the existing graph."""
 
@@ -147,6 +153,8 @@ ORGANIZE_USER = """Knowledge graph nodes and their relationships:
 {graph_json}
 ---
 
+Each node has incoming edges (edges_in) and outgoing edges (edges_out) with types: prerequisite, subtopic, method_of, motivation, application, related. Use these to understand how nodes relate before suggesting changes.
+
 Propose organizational improvements. Available suggestion types:
 1. MERGE: Two nodes that cover the same concept and should be combined (union their page references).
 2. SPLIT: One node that covers too many distinct concepts and should be split into separate nodes.
@@ -155,6 +163,7 @@ Propose organizational improvements. Available suggestion types:
 
 Rules:
 - Be conservative. Only suggest changes with clear benefit.
+- Consider edge types when suggesting: nodes connected by "subtopic" edges to the same parent are naturally grouped; "method_of" edges suggest sibling methods that should be at the same depth.
 - For MERGE: provide both node titles and a merged title.
 - For SPLIT: provide the node title and proposed sub-nodes with which page references go where.
 - For REORDER: provide the node title and new suggested order_index.
@@ -187,7 +196,7 @@ class LLMClient:
         )
         return json.loads(response.choices[0].message.content)
 
-    def extract_topics(self, chunks: list[dict], max_depth: int = 3) -> dict:
+    def extract_topics(self, chunks: list[dict], max_depth: int = 7) -> dict:
         """LLM Call 1: Extract hierarchical topics from page-grouped chunks."""
         user_prompt = TOPIC_EXTRACTION_USER.format(
             chunks=json.dumps(chunks, indent=2),

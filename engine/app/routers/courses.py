@@ -14,6 +14,10 @@ from app.models.node import Node, NodeEdge
 from app.models.document import Document, Page, NodePage, Reference
 
 
+class CreateCourseRequest(BaseModel):
+    title: str
+
+
 class CreateNodeRequest(BaseModel):
     title: str
 
@@ -66,6 +70,15 @@ def list_courses(db: Session = Depends(get_db)):
         .all()
     )
     return [_course_to_dict(c, doc_counts.get(c.id, 0)) for c in courses]
+
+
+@router.post("", status_code=201)
+def create_course(body: CreateCourseRequest, db: Session = Depends(get_db)):
+    course = Course(title=body.title, ingestion_status="pending")
+    db.add(course)
+    db.flush()
+    db.commit()
+    return _course_to_dict(course, 0)
 
 
 def _node_to_dict(node: Node, pages: list[dict]) -> dict:
@@ -141,6 +154,46 @@ def get_course(course_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Course not found")
     doc_count = db.query(func.count(Document.id)).filter_by(course_id=course_id).scalar()
     return _course_to_dict(course, doc_count or 0)
+
+
+@router.delete("/{course_id}", status_code=204)
+def delete_course(course_id: UUID, db: Session = Depends(get_db)):
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # Collect all page IDs across all documents for embedding cleanup
+    pages = db.query(Page).filter_by(course_id=course_id).all()
+    page_ids = [str(p.id) for p in pages]
+
+    # Delete embeddings from ChromaDB
+    delete_embeddings(course_id=str(course_id), page_ids=page_ids)
+
+    # Delete PDF files from disk
+    docs = db.query(Document).filter_by(course_id=course_id).all()
+    for doc in docs:
+        if doc.file_path:
+            file_path = Path(doc.file_path)
+            if file_path.exists():
+                file_path.unlink()
+
+    # Explicitly delete join-table rows to avoid SQLAlchemy PK blank-out errors
+    page_ids_uuid = [p.id for p in pages]
+    if page_ids_uuid:
+        db.query(NodePage).filter(NodePage.page_id.in_(page_ids_uuid)).delete(
+            synchronize_session="fetch"
+        )
+
+    node_ids = [n.id for n in db.query(Node).filter_by(course_id=course_id).all()]
+    if node_ids:
+        db.query(NodePage).filter(NodePage.node_id.in_(node_ids)).delete(
+            synchronize_session="fetch"
+        )
+
+    # Delete course (CASCADE handles documents, pages, nodes, edges, references)
+    db.delete(course)
+    db.flush()
+    db.commit()
 
 
 # --- Documents ---

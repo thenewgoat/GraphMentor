@@ -87,7 +87,7 @@ class TestGraphBuilder:
         mock_llm_class.return_value = mock_llm
 
         builder = GraphBuilder(db=db, openai_api_key="fake")
-        result = builder.run(course_id=course.id, document_id=doc.id, max_depth=3)
+        result = builder.run(course_id=course.id, document_id=doc.id, max_depth=7)
 
         # Check result summary
         assert result["nodes_created"] == 2
@@ -141,7 +141,7 @@ class TestGraphBuilder:
         builder = GraphBuilder(db=db, openai_api_key="fake")
 
         # First document: creates fresh graph
-        builder.run(course_id=course.id, document_id=doc1.id, max_depth=3)
+        builder.run(course_id=course.id, document_id=doc1.id, max_depth=7)
         first_nodes = db.query(Node).filter_by(course_id=course.id).all()
         assert len(first_nodes) == 2
 
@@ -182,7 +182,7 @@ class TestGraphBuilder:
             }]
         }
 
-        result = builder.run(course_id=course.id, document_id=doc2.id, max_depth=3)
+        result = builder.run(course_id=course.id, document_id=doc2.id, max_depth=7)
         assert result["nodes_created"] == 1
         assert result["nodes_extended"] == 0
 
