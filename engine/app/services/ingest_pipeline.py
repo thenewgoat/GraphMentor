@@ -79,7 +79,6 @@ class IngestPipeline:
 
             # Extract slides
             slides = self.extractor.extract(pdf_path)
-            document.page_count = len(slides)
 
             # Compute global_page offset
             max_global = (
@@ -104,6 +103,7 @@ class IngestPipeline:
                 )
                 page_models.append(page)
             self.db.add_all(page_models)
+            document.page_count = len(page_models)
             self.db.flush()
 
             # Embed pages in ChromaDB

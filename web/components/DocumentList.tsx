@@ -1,10 +1,11 @@
-/** Document list — shows uploaded docs with extract button per document. */
+/** Document list — shows uploaded docs with extract and delete buttons. */
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDocuments, extractTopics } from "@/lib/api";
+import { getDocuments, extractTopics, deleteDocument } from "@/lib/api";
 import type { DocumentInfo, IngestionStatus } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface DocumentListProps {
   courseId: string;
@@ -15,6 +16,8 @@ export default function DocumentList({ courseId, onExtracted }: DocumentListProp
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
@@ -37,6 +40,21 @@ export default function DocumentList({ courseId, onExtracted }: DocumentListProp
       setError(err instanceof Error ? err.message : "Extraction failed");
     } finally {
       setExtractingId(null);
+    }
+  }
+
+  async function handleDelete(docId: string) {
+    setConfirmDeleteId(null);
+    setDeletingId(docId);
+    setError(null);
+    try {
+      await deleteDocument(courseId, docId);
+      onExtracted();
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -72,10 +90,24 @@ export default function DocumentList({ courseId, onExtracted }: DocumentListProp
                     {extractingId === d.id ? "Extracting..." : "Extract"}
                   </button>
                 )}
+                <button
+                  onClick={() => setConfirmDeleteId(d.id)}
+                  disabled={deletingId === d.id}
+                  className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
+                >
+                  {deletingId === d.id ? "Removing..." : "Remove"}
+                </button>
               </div>
             </li>
           ))}
         </ul>
+      )}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          message="Remove this document? Its pages, embeddings, and any orphaned nodes will be deleted."
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
       )}
     </div>
   );

@@ -77,6 +77,16 @@ class TestTopicValidator:
         with pytest.raises(ValidationError, match="[Pp]age"):
             validator.validate(data)
 
+    def test_same_depth_parent_child_auto_corrected(self):
+        data = _valid_topics()
+        # Set child "Linear Regression" to same depth as parent "Machine Learning Basics"
+        data["topics"][1]["depth"] = 1
+        validator = TopicValidator(num_pages=3, max_depth=3)
+        result = validator.validate(data)
+        # Should auto-correct to parent_depth + 1 = 2, not raise
+        lr = next(t for t in result["topics"] if t["title"] == "Linear Regression")
+        assert lr["depth"] == 2
+
 
 class TestMergeValidator:
     def test_valid_merge_decisions_pass(self):

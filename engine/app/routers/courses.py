@@ -1,4 +1,5 @@
 """CRUD endpoints for courses, nodes, edges, documents, and references."""
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.postgres import get_db
+from app.db.vector import delete_embeddings
 from app.models.course import Course
 from app.models.node import Node, NodeEdge
 from app.models.document import Document, Page, NodePage, Reference
@@ -167,6 +169,44 @@ def list_documents(course_id: UUID, db: Session = Depends(get_db)):
         }
         for d in docs
     ]
+
+
+@router.delete("/{course_id}/documents/{doc_id}", status_code=204)
+def delete_document(course_id: UUID, doc_id: UUID, db: Session = Depends(get_db)):
+    doc = db.get(Document, doc_id)
+    if not doc or doc.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Collect page IDs for embedding cleanup
+    page_ids = [str(p.id) for p in doc.pages]
+
+    # Delete embeddings from ChromaDB
+    delete_embeddings(course_id=str(course_id), page_ids=page_ids)
+
+    # Delete PDF from disk
+    if doc.file_path:
+        file_path = Path(doc.file_path)
+        if file_path.exists():
+            file_path.unlink()
+
+    # Delete document (CASCADE handles pages → node_pages)
+    db.delete(doc)
+    db.flush()
+
+    # Delete orphan nodes (nodes with zero remaining page links in this course)
+    orphan_nodes = (
+        db.query(Node)
+        .filter(Node.course_id == course_id)
+        .outerjoin(NodePage, Node.id == NodePage.node_id)
+        .group_by(Node.id)
+        .having(func.count(NodePage.page_id) == 0)
+        .all()
+    )
+    for node in orphan_nodes:
+        db.delete(node)
+
+    db.flush()
+    db.commit()
 
 
 # --- References ---

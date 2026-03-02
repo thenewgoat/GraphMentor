@@ -63,7 +63,7 @@ class TestFullPipeline:
         # Document in DB
         doc = db.query(Document).filter_by(course_id=course.id).first()
         assert doc is not None
-        assert doc.page_count == 3  # all slides counted
+        assert doc.page_count == 2  # only non-empty slides counted
         assert doc.upload_order == 1
 
         # Pages in DB (only non-empty slides)

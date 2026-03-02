@@ -50,10 +50,10 @@ class TopicValidator:
 
         for topic in topics:
             # 3. Parent references
-            if topic["depth"] == 1:
-                if topic["parent_title"] is not None:
+            if topic["parent_title"] is None:
+                if topic["depth"] != 1:
                     raise ValidationError(
-                        f"Depth-1 topic '{topic['title']}' must have null parent_title"
+                        f"Topic '{topic['title']}' has no parent but depth {topic['depth']} != 1"
                     )
             else:
                 parent = topic["parent_title"]
@@ -62,11 +62,15 @@ class TopicValidator:
                         f"Parent '{parent}' not found for topic '{topic['title']}'"
                     )
                 if title_depths[parent] >= topic["depth"]:
-                    raise ValidationError(
-                        f"Parent '{parent}' (depth {title_depths[parent]}) "
-                        f"must be shallower than child '{topic['title']}' "
-                        f"(depth {topic['depth']})"
+                    corrected = title_depths[parent] + 1
+                    logger.warning(
+                        "Auto-correcting depth of '%s' from %d to %d "
+                        "(parent '%s' is at depth %d)",
+                        topic["title"], topic["depth"], corrected,
+                        parent, title_depths[parent],
                     )
+                    topic["depth"] = corrected
+                    title_depths[topic["title"]] = corrected
 
             # 4. Depth cap
             if topic["depth"] > self.max_depth:

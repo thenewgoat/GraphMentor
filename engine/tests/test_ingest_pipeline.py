@@ -2,6 +2,7 @@
 import hashlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 import fitz
 import pytest
 
@@ -123,3 +124,37 @@ class TestIngestPipeline:
 
         assert r1["upload_order"] == 1
         assert r2["upload_order"] == 2
+
+    @patch("app.services.ingest_pipeline.OpenAIEmbedder")
+    @patch("app.services.ingest_pipeline.get_chroma_client")
+    def test_page_count_excludes_empty_slides(
+        self, mock_chroma, mock_embedder_class, db, tmp_path
+    ):
+        mock_collection = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_chroma.return_value = mock_client
+
+        mock_embedder = MagicMock()
+        mock_embedder.get_embeddings.return_value = [[0.1] * 1536]
+        mock_embedder_class.return_value = mock_embedder
+
+        # Create a PDF with 2 pages: one with text, one blank
+        doc = fitz.open()
+        p1 = doc.new_page(width=720, height=540)
+        p1.insert_text((50, 50), "Real Content", fontsize=24)
+        p1.insert_text((50, 120), "Some body text here.", fontsize=14)
+        doc.new_page(width=720, height=540)  # blank page
+        pdf_path = tmp_path / "mixed.pdf"
+        doc.save(str(pdf_path))
+        doc.close()
+
+        pipeline = IngestPipeline(
+            db=db, upload_dir=tmp_path / "uploads", openai_api_key="fake",
+        )
+        result = pipeline.run(pdf_path=pdf_path, title="Mixed Course")
+
+        # page_count on the document should match pages_count in result
+        from app.models.document import Document as DocModel
+        doc_record = db.query(DocModel).filter_by(id=result["document_id"]).first()
+        assert doc_record.page_count == result["pages_count"]

@@ -1,5 +1,6 @@
 """Tests for course, graph, documents, references, nodes, and edges endpoints."""
 import uuid
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -170,3 +171,150 @@ class TestReferencesEndpoint:
         # Verify deleted
         response = client.get(f"/courses/{course.id}/references")
         assert len(response.json()) == 0
+
+
+class TestDeleteDocumentEndpoint:
+    def test_delete_document_returns_204(self, client, db):
+        course = Course(title="Del Doc Course")
+        db.add(course)
+        db.flush()
+
+        doc = Document(
+            course_id=course.id, title="To Delete", filename="del.pdf",
+            file_path="/tmp/del.pdf", file_hash="deltest001", upload_order=1,
+            page_count=1, ingestion_status="complete",
+        )
+        db.add(doc)
+        db.flush()
+
+        page = Page(
+            document_id=doc.id, course_id=course.id,
+            page_number=1, global_page=1,
+            slide_title="S1", body="Content",
+        )
+        db.add(page)
+        db.flush()
+
+        with patch("app.routers.courses.delete_embeddings") as mock_del:
+            response = client.delete(f"/courses/{course.id}/documents/{doc.id}")
+
+        assert response.status_code == 204
+
+        # Document and pages should be gone
+        assert db.query(Document).filter_by(id=doc.id).first() is None
+        assert db.query(Page).filter_by(document_id=doc.id).all() == []
+
+        # Embeddings cleanup was called
+        mock_del.assert_called_once()
+
+    def test_delete_document_removes_orphan_nodes(self, client, db):
+        course = Course(title="Orphan Course")
+        db.add(course)
+        db.flush()
+
+        doc = Document(
+            course_id=course.id, title="Only Doc", filename="only.pdf",
+            file_path="/tmp/only.pdf", file_hash="orphantest001", upload_order=1,
+            page_count=1, ingestion_status="complete",
+        )
+        db.add(doc)
+        db.flush()
+
+        page = Page(
+            document_id=doc.id, course_id=course.id,
+            page_number=1, global_page=1,
+            slide_title="S1", body="Content",
+        )
+        db.add(page)
+        db.flush()
+
+        # Create a node linked only to this page (will become orphan)
+        orphan_node = Node(course_id=course.id, title="Orphan Topic", depth=1, order_index=0)
+        db.add(orphan_node)
+        db.flush()
+
+        np = NodePage(node_id=orphan_node.id, page_id=page.id)
+        db.add(np)
+        db.flush()
+
+        with patch("app.routers.courses.delete_embeddings"):
+            response = client.delete(f"/courses/{course.id}/documents/{doc.id}")
+
+        assert response.status_code == 204
+
+        # Orphan node should be auto-deleted
+        assert db.query(Node).filter_by(id=orphan_node.id).first() is None
+
+    def test_delete_document_keeps_multi_doc_nodes(self, client, db):
+        course = Course(title="Multi Doc Course")
+        db.add(course)
+        db.flush()
+
+        doc1 = Document(
+            course_id=course.id, title="Doc 1", filename="d1.pdf",
+            file_path="/tmp/d1.pdf", file_hash="multi001", upload_order=1,
+            page_count=1, ingestion_status="complete",
+        )
+        doc2 = Document(
+            course_id=course.id, title="Doc 2", filename="d2.pdf",
+            file_path="/tmp/d2.pdf", file_hash="multi002", upload_order=2,
+            page_count=1, ingestion_status="complete",
+        )
+        db.add_all([doc1, doc2])
+        db.flush()
+
+        page1 = Page(
+            document_id=doc1.id, course_id=course.id,
+            page_number=1, global_page=1,
+            slide_title="S1", body="Content 1",
+        )
+        page2 = Page(
+            document_id=doc2.id, course_id=course.id,
+            page_number=1, global_page=2,
+            slide_title="S2", body="Content 2",
+        )
+        db.add_all([page1, page2])
+        db.flush()
+
+        # Node linked to pages from BOTH documents — should survive
+        shared_node = Node(course_id=course.id, title="Shared Topic", depth=1, order_index=0)
+        db.add(shared_node)
+        db.flush()
+
+        np1 = NodePage(node_id=shared_node.id, page_id=page1.id)
+        np2 = NodePage(node_id=shared_node.id, page_id=page2.id)
+        db.add_all([np1, np2])
+        db.flush()
+
+        with patch("app.routers.courses.delete_embeddings"):
+            response = client.delete(f"/courses/{course.id}/documents/{doc1.id}")
+
+        assert response.status_code == 204
+
+        # Shared node should survive (still linked to page2)
+        surviving = db.query(Node).filter_by(id=shared_node.id).first()
+        assert surviving is not None
+
+    def test_delete_document_not_found(self, client, db):
+        course = Course(title="NF Course")
+        db.add(course)
+        db.flush()
+
+        response = client.delete(f"/courses/{course.id}/documents/{uuid.uuid4()}")
+        assert response.status_code == 404
+
+    def test_delete_document_wrong_course(self, client, db):
+        course1 = Course(title="Course A")
+        course2 = Course(title="Course B")
+        db.add_all([course1, course2])
+        db.flush()
+
+        doc = Document(
+            course_id=course1.id, title="Doc", filename="d.pdf",
+            file_path="/tmp/d.pdf", file_hash="wrongcourse001", upload_order=1,
+        )
+        db.add(doc)
+        db.flush()
+
+        response = client.delete(f"/courses/{course2.id}/documents/{doc.id}")
+        assert response.status_code == 404

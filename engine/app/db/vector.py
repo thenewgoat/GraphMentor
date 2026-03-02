@@ -23,3 +23,13 @@ def get_or_create_collection(course_id: str) -> chromadb.Collection:
     client = get_chroma_client()
     collection_name = f"course_{course_id.replace('-', '')}_sentences"
     return client.get_or_create_collection(name=collection_name)
+
+
+def delete_embeddings(course_id: str, page_ids: list[str]) -> None:
+    """Delete page embeddings from a course's ChromaDB collection."""
+    if not page_ids:
+        return
+    client = get_chroma_client()
+    collection_name = f"course_{course_id.replace('-', '')}_pages"
+    collection = client.get_or_create_collection(name=collection_name)
+    collection.delete(ids=page_ids)

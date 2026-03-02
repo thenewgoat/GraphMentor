@@ -74,6 +74,9 @@ export const extractTopics = (courseId: string, documentId: string) =>
 export const getDocuments = (courseId: string) =>
   request<DocumentInfo[]>(`/courses/${courseId}/documents`);
 
+export const deleteDocument = (courseId: string, docId: string) =>
+  request<void>(`/courses/${courseId}/documents/${docId}`, { method: "DELETE" });
+
 // References
 export const getReferences = (courseId: string) =>
   request<ReferenceInfo[]>(`/courses/${courseId}/references`);

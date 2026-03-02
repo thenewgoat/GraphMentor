@@ -18,8 +18,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import GraphNode from "./GraphNode";
-import { GraphNode as GraphNodeData, GraphData } from "@/lib/api";
-import { NodeEdge } from "@/lib/types";
+import { GraphData } from "@/lib/api";
 import { applyDagreLayout } from "@/lib/layout";
 
 import * as api from "@/lib/api";
@@ -75,7 +74,7 @@ export default function GraphCanvas({
     [graphData, handleRename],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
+  const [nodes, , onNodesChange] = useNodesState(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
 
   const onConnect = useCallback(
