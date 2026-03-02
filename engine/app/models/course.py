@@ -43,7 +43,7 @@ class Course(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "ingestion_status IN ('pending', 'processing', 'complete', 'failed')",
+            "ingestion_status IN ('pending', 'processing', 'complete', 'failed', 'graph_ready')",
             name="chk_ingestion_status",
         ),
     )

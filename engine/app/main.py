@@ -4,9 +4,11 @@ from sqlalchemy import text
 from app.db.postgres import engine as db_engine
 from app.db.vector import get_chroma_client
 from app.routers.ingest import router as ingest_router
+from app.routers.extract import router as extract_router
 
 app = FastAPI(title="GraphMentor Engine", version="0.1.0")
 app.include_router(ingest_router)
+app.include_router(extract_router)
 
 
 @app.get("/health")

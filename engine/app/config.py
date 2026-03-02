@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     chromadb_host: str = "localhost"
     chromadb_port: int = 8100
     openai_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
