@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Depends
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 def upload_pdf(
     file: UploadFile = File(...),
     title: str = Form(...),
+    course_id: str = Form(None),
     db: Session = Depends(get_db),
 ):
     # Validate file type
@@ -28,12 +30,14 @@ def upload_pdf(
         tmp_path = Path(tmp.name)
 
     try:
+        cid = UUID(course_id) if course_id else None
+
         pipeline = IngestPipeline(
             db=db,
             upload_dir=Path("data/uploads"),
             openai_api_key=settings.openai_api_key,
         )
-        result = pipeline.run(pdf_path=tmp_path, title=title)
+        result = pipeline.run(pdf_path=tmp_path, title=title, course_id=cid)
         db.commit()
         return result
 
@@ -41,6 +45,8 @@ def upload_pdf(
         db.rollback()
         if "duplicate" in str(e).lower():
             raise HTTPException(status_code=409, detail=str(e))
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         db.rollback()

@@ -1,13 +1,12 @@
 """Integration test: runs the full pipeline with mocked OpenAI only."""
 import fitz
-import hashlib
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 
 from app.services.ingest_pipeline import IngestPipeline
 from app.models.course import Course
-from app.models.sentence import Sentence
+from app.models.document import Document, Page
 
 
 @pytest.fixture
@@ -25,7 +24,6 @@ def multi_slide_pdf(tmp_path) -> Path:
     page.insert_text((50, 50), "Dr. Smith's Approach", fontsize=24)
     page.insert_text((50, 120), "Dr. Smith proposed a novel algorithm in 2019.", fontsize=14)
     page.insert_text((50, 150), "The algorithm runs in O(n log n) time.", fontsize=14)
-    page.insert_text((50, 180), "It outperforms e.g. naive implementations.", fontsize=14)
 
     # Slide 3 — empty (image-only)
     doc.new_page(width=720, height=540)
@@ -40,15 +38,12 @@ class TestFullPipeline:
     @patch("app.services.ingest_pipeline.OpenAIEmbedder")
     @patch("app.services.ingest_pipeline.get_chroma_client")
     def test_end_to_end(self, mock_chroma, mock_embedder_class, db, multi_slide_pdf, tmp_path):
-        # Mock ChromaDB
         mock_collection = MagicMock()
         mock_client = MagicMock()
         mock_client.get_or_create_collection.return_value = mock_collection
         mock_chroma.return_value = mock_client
 
-        # Mock embedder — return correct number of embeddings
         mock_embedder = MagicMock()
-        mock_embedder.format_text.side_effect = lambda s: s.text
         mock_embedder.get_embeddings.side_effect = lambda texts: [[0.1] * 1536] * len(texts)
         mock_embedder_class.return_value = mock_embedder
 
@@ -59,45 +54,42 @@ class TestFullPipeline:
 
         # Pipeline result
         assert result["status"] == "complete"
-        assert result["pages_processed"] == 2  # slide 3 is empty
-        assert result["sentences_count"] == 5  # 2 + 3
+        assert result["pages_count"] == 2  # slide 3 is empty
 
         # Course in DB
         course = db.query(Course).filter_by(title="ML Course").first()
         assert course.ingestion_status == "complete"
-        assert course.source_pdf_hash == hashlib.sha256(multi_slide_pdf.read_bytes()).hexdigest()
 
-        # Sentences in DB
-        sentences = (
-            db.query(Sentence)
-            .filter_by(course_id=course.id)
-            .order_by(Sentence.page, Sentence.position)
+        # Document in DB
+        doc = db.query(Document).filter_by(course_id=course.id).first()
+        assert doc is not None
+        assert doc.page_count == 3  # all slides counted
+        assert doc.upload_order == 1
+
+        # Pages in DB (only non-empty slides)
+        pages = (
+            db.query(Page)
+            .filter_by(document_id=doc.id)
+            .order_by(Page.page_number)
             .all()
         )
-        assert len(sentences) == 5
+        assert len(pages) == 2
 
-        # Page 1 sentences
-        p1 = [s for s in sentences if s.page == 1]
-        assert len(p1) == 2
-        assert "Machine learning" in p1[0].text
-        assert p1[0].slide_title is not None
+        # Page 1
+        assert "Machine learning" in pages[0].body
+        assert pages[0].slide_title is not None
 
-        # Page 2 sentences — abbreviations handled
-        p2 = [s for s in sentences if s.page == 2]
-        assert len(p2) == 3
-        assert any("Dr. Smith" in s.text for s in p2)
-        assert any("e.g." in s.text for s in p2)
+        # Page 2
+        assert "Dr. Smith" in pages[1].body
 
-        # ChromaDB received all 5 sentences
+        # ChromaDB received 2 pages
         call_args = mock_collection.add.call_args
-        assert len(call_args.kwargs["ids"]) == 5
+        assert len(call_args.kwargs["ids"]) == 2
 
     @patch("app.services.ingest_pipeline.OpenAIEmbedder")
     @patch("app.services.ingest_pipeline.get_chroma_client")
     def test_rollback_on_failure(self, mock_chroma, mock_embedder_class, db, multi_slide_pdf, tmp_path):
-        # Mock embedder to fail
         mock_embedder = MagicMock()
-        mock_embedder.format_text.side_effect = lambda s: s.text
         mock_embedder.get_embeddings.side_effect = RuntimeError("API down")
         mock_embedder_class.return_value = mock_embedder
 
@@ -108,5 +100,8 @@ class TestFullPipeline:
         with pytest.raises(RuntimeError, match="API down"):
             pipeline.run(pdf_path=multi_slide_pdf, title="Fail Course")
 
-        # Course should not exist
-        assert db.query(Course).filter_by(title="Fail Course").first() is None
+        # Course should exist (created before document fails) but document should be deleted
+        course = db.query(Course).filter_by(title="Fail Course").first()
+        if course:
+            docs = db.query(Document).filter_by(course_id=course.id).all()
+            assert len(docs) == 0

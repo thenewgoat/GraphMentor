@@ -5,15 +5,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import (
     Course, Node, NodeEdge, Student, StudentNodeState, Question, Attempt,
+    Document, Page, NodePage, Reference,
 )
 
 
 def _make_course(db, **overrides):
-    defaults = dict(
-        title="Test Course",
-        source_pdf_path="/tmp/test.pdf",
-        source_pdf_hash=uuid.uuid4().hex + uuid.uuid4().hex[:32],
-    )
+    defaults = dict(title="Test Course")
     defaults.update(overrides)
     course = Course(**defaults)
     db.add(course)
@@ -32,20 +29,10 @@ class TestCourse:
         assert course.topic_radius == 2
 
     def test_course_requires_title(self, db):
-        course = Course(
-            title=None,
-            source_pdf_path="/tmp/test.pdf",
-            source_pdf_hash="b" * 64,
-        )
+        course = Course(title=None)
         db.add(course)
         with pytest.raises(IntegrityError):
             db.flush()
-
-    def test_course_unique_pdf_hash(self, db):
-        hash_val = "c" * 64
-        _make_course(db, source_pdf_hash=hash_val)
-        with pytest.raises(IntegrityError):
-            _make_course(db, source_pdf_hash=hash_val)
 
 
 class TestNode:
@@ -81,6 +68,91 @@ class TestNode:
         db.add(edge)
         with pytest.raises(IntegrityError):
             db.flush()
+
+    def test_node_supplementary_content(self, db):
+        course = _make_course(db)
+        node = Node(course_id=course.id, title="Topic", supplementary_content="Extra info")
+        db.add(node)
+        db.flush()
+        assert node.supplementary_content == "Extra info"
+
+
+class TestDocument:
+    def test_create_document(self, db):
+        course = _make_course(db)
+        doc = Document(
+            course_id=course.id, title="Lecture 1", filename="lec1.pdf",
+            file_path="/tmp/lec1.pdf", file_hash="a" * 64, upload_order=1,
+        )
+        db.add(doc)
+        db.flush()
+        assert doc.id is not None
+        assert doc.ingestion_status == "pending"
+
+    def test_document_unique_hash_per_course(self, db):
+        course = _make_course(db)
+        hash_val = "d" * 64
+        db.add(Document(
+            course_id=course.id, title="Doc 1", filename="d1.pdf",
+            file_path="/tmp/d1.pdf", file_hash=hash_val, upload_order=1,
+        ))
+        db.flush()
+        db.add(Document(
+            course_id=course.id, title="Doc 2", filename="d2.pdf",
+            file_path="/tmp/d2.pdf", file_hash=hash_val, upload_order=2,
+        ))
+        with pytest.raises(IntegrityError):
+            db.flush()
+
+    def test_page_creation(self, db):
+        course = _make_course(db)
+        doc = Document(
+            course_id=course.id, title="Doc", filename="d.pdf",
+            file_path="/tmp/d.pdf", file_hash="e" * 64, upload_order=1,
+        )
+        db.add(doc)
+        db.flush()
+
+        page = Page(
+            document_id=doc.id, course_id=course.id,
+            page_number=1, global_page=1, body="Hello world",
+        )
+        db.add(page)
+        db.flush()
+        assert page.id is not None
+
+    def test_node_page_mapping(self, db):
+        course = _make_course(db)
+        doc = Document(
+            course_id=course.id, title="Doc", filename="d.pdf",
+            file_path="/tmp/d.pdf", file_hash="f" * 64, upload_order=1,
+        )
+        node = Node(course_id=course.id, title="Topic")
+        db.add_all([doc, node])
+        db.flush()
+
+        page = Page(
+            document_id=doc.id, course_id=course.id,
+            page_number=1, global_page=1, body="Content",
+        )
+        db.add(page)
+        db.flush()
+
+        np = NodePage(node_id=node.id, page_id=page.id)
+        db.add(np)
+        db.flush()
+        assert np.node_id == node.id
+        assert np.page_id == page.id
+
+    def test_reference_creation(self, db):
+        course = _make_course(db)
+        ref = Reference(
+            course_id=course.id, ref_type="book",
+            title="CLRS", author="Cormen et al.",
+        )
+        db.add(ref)
+        db.flush()
+        assert ref.id is not None
 
 
 class TestStudent:

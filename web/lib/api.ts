@@ -13,6 +13,35 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Type imports
+import type {
+  Course,
+  NodeEdge,
+  DocumentInfo,
+  ReferenceInfo,
+  PageData,
+  OrganizeSuggestion,
+} from "./types";
+
+// API response types
+export interface GraphNode {
+  id: string;
+  course_id: string;
+  title: string;
+  parent_ids: string[];
+  child_ids: string[];
+  depth: number;
+  order_index: number;
+  supplementary_content: string | null;
+  application_examples: Record<string, unknown> | null;
+  pages: PageData[];
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: NodeEdge[];
+}
+
 // Courses
 export const getCourses = () => request<Course[]>("/courses");
 export const getCourse = (id: string) => request<Course>(`/courses/${id}`);
@@ -20,10 +49,11 @@ export const getGraph = (courseId: string) =>
   request<GraphData>(`/courses/${courseId}/graph`);
 
 // Upload (multipart — no JSON Content-Type)
-export async function uploadPdf(file: File, title: string) {
+export async function uploadPdf(file: File, title: string, courseId?: string) {
   const form = new FormData();
   form.append("file", file);
   form.append("title", title);
+  if (courseId) form.append("course_id", courseId);
   const res = await fetch(`${API_URL}/ingest/upload`, { method: "POST", body: form });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: res.statusText }));
@@ -33,8 +63,47 @@ export async function uploadPdf(file: File, title: string) {
 }
 
 // Extract
-export const extractTopics = (courseId: string) =>
-  request<Record<string, unknown>>(`/extract/topics/${courseId}`, { method: "POST" });
+export const extractTopics = (courseId: string, documentId: string) =>
+  request<Record<string, unknown>>(
+    `/extract/topics/${courseId}?document_id=${documentId}`,
+    { method: "POST" }
+  );
+
+// Documents
+export const getDocuments = (courseId: string) =>
+  request<DocumentInfo[]>(`/courses/${courseId}/documents`);
+
+// References
+export const getReferences = (courseId: string) =>
+  request<ReferenceInfo[]>(`/courses/${courseId}/references`);
+
+export const createReference = (courseId: string, data: Omit<ReferenceInfo, "id">) =>
+  request<{ id: string }>(`/courses/${courseId}/references`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const deleteReference = (courseId: string, refId: string) =>
+  request<void>(`/courses/${courseId}/references/${refId}`, { method: "DELETE" });
+
+// Enrich & Organize
+export const enrichCourse = (courseId: string) =>
+  request<{ nodes_enriched: number; nodes_skipped: number }>(
+    `/extract/enrich/${courseId}`,
+    { method: "POST" }
+  );
+
+export const organizeCourse = (courseId: string) =>
+  request<{ suggestions: OrganizeSuggestion[] }>(
+    `/extract/organize/${courseId}`,
+    { method: "POST" }
+  );
+
+export const applyOrganization = (courseId: string, suggestionIds: number[]) =>
+  request<{ applied: number }>(
+    `/extract/organize/${courseId}/apply`,
+    { method: "POST", body: JSON.stringify({ suggestion_ids: suggestionIds }) }
+  );
 
 // Node CRUD
 export const createNode = (courseId: string, title: string) =>
@@ -66,32 +135,3 @@ export const createEdge = (
 
 export const deleteEdge = (courseId: string, parentId: string, childId: string) =>
   request<void>(`/courses/${courseId}/edges/${parentId}/${childId}`, { method: "DELETE" });
-
-// Type imports (re-exported from types.ts)
-import type { Course, NodeEdge } from "./types";
-
-// Additional types for API responses
-export interface SentenceData {
-  id: string;
-  page: number;
-  position: number;
-  slide_title: string | null;
-  text: string;
-}
-
-export interface GraphNode {
-  id: string;
-  course_id: string;
-  title: string;
-  parent_ids: string[];
-  child_ids: string[];
-  depth: number;
-  order_index: number;
-  application_examples: Record<string, unknown> | null;
-  sentences: SentenceData[];
-}
-
-export interface GraphData {
-  nodes: GraphNode[];
-  edges: NodeEdge[];
-}

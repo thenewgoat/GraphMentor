@@ -17,12 +17,7 @@ def client(db):
 
 
 def _make_course(db, hash_suffix="001"):
-    course = Course(
-        title="Test Course",
-        source_pdf_path="/tmp/test.pdf",
-        source_pdf_hash=f"edit_{hash_suffix}",
-        ingestion_status="graph_ready",
-    )
+    course = Course(title="Test Course", ingestion_status="graph_ready")
     db.add(course)
     db.flush()
     return course

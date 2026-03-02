@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, String, Integer, ForeignKey, DateTime, CheckConstraint, Index
+    Column, String, Text, Integer, ForeignKey, DateTime, CheckConstraint, Index
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import relationship
@@ -22,10 +22,10 @@ class Node(Base):
     title = Column(String(255), nullable=False)
     parent_ids = Column(ARRAY(UUID(as_uuid=True)), default=list)
     child_ids = Column(ARRAY(UUID(as_uuid=True)), default=list)
-    content_chunk_ids = Column(ARRAY(String), default=list)
     depth = Column(Integer, nullable=False, default=0)
     order_index = Column(Integer, nullable=False, default=0)
     application_examples = Column(JSONB, nullable=True)
+    supplementary_content = Column(Text, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

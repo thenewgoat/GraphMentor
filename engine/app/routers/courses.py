@@ -2,12 +2,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.postgres import get_db
 from app.models.course import Course
 from app.models.node import Node, NodeEdge
-from app.models.sentence import NodeSentence, Sentence
+from app.models.document import Document, Page, NodePage, Reference
 
 
 class CreateNodeRequest(BaseModel):
@@ -25,21 +26,29 @@ class CreateEdgeRequest(BaseModel):
     child_id: str
     edge_type: str = "prerequisite"
 
+
+class CreateReferenceRequest(BaseModel):
+    ref_type: str
+    title: str
+    author: str | None = None
+    isbn: str | None = None
+    url: str | None = None
+
+
 router = APIRouter(prefix="/courses", tags=["courses"])
 
 
-def _course_to_dict(course: Course) -> dict:
+def _course_to_dict(course: Course, doc_count: int = 0) -> dict:
     return {
         "id": str(course.id),
         "title": course.title,
         "description": course.description,
-        "source_pdf_path": course.source_pdf_path,
-        "source_pdf_hash": course.source_pdf_hash,
         "mastery_threshold": course.mastery_threshold,
         "time_decay_lambda": course.time_decay_lambda,
         "max_follow_ups_per_session": course.max_follow_ups_per_session,
         "topic_radius": course.topic_radius,
         "ingestion_status": course.ingestion_status,
+        "document_count": doc_count,
         "created_at": course.created_at.isoformat() if course.created_at else None,
         "updated_at": course.updated_at.isoformat() if course.updated_at else None,
     }
@@ -48,10 +57,15 @@ def _course_to_dict(course: Course) -> dict:
 @router.get("")
 def list_courses(db: Session = Depends(get_db)):
     courses = db.query(Course).order_by(Course.created_at.desc()).all()
-    return [_course_to_dict(c) for c in courses]
+    doc_counts = dict(
+        db.query(Document.course_id, func.count(Document.id))
+        .group_by(Document.course_id)
+        .all()
+    )
+    return [_course_to_dict(c, doc_counts.get(c.id, 0)) for c in courses]
 
 
-def _node_to_dict(node: Node, sentences: list[dict]) -> dict:
+def _node_to_dict(node: Node, pages: list[dict]) -> dict:
     return {
         "id": str(node.id),
         "course_id": str(node.course_id),
@@ -61,7 +75,8 @@ def _node_to_dict(node: Node, sentences: list[dict]) -> dict:
         "depth": node.depth,
         "order_index": node.order_index,
         "application_examples": node.application_examples,
-        "sentences": sentences,
+        "supplementary_content": node.supplementary_content,
+        "pages": pages,
     }
 
 
@@ -87,29 +102,31 @@ def get_graph(course_id: UUID, db: Session = Depends(get_db)):
         .all()
     )
 
-    # Batch-load sentences per node
+    # Batch-load pages per node
     node_ids = [n.id for n in nodes]
-    node_sentence_rows = (
-        db.query(NodeSentence.node_id, Sentence)
-        .join(Sentence, NodeSentence.sentence_id == Sentence.id)
-        .filter(NodeSentence.node_id.in_(node_ids))
-        .order_by(Sentence.page, Sentence.position)
+    node_page_rows = (
+        db.query(NodePage.node_id, Page, Document.title.label("doc_title"))
+        .join(Page, NodePage.page_id == Page.id)
+        .join(Document, Page.document_id == Document.id)
+        .filter(NodePage.node_id.in_(node_ids))
+        .order_by(Page.global_page)
         .all()
     ) if node_ids else []
 
-    sentences_by_node: dict[str, list[dict]] = {}
-    for node_id, sentence in node_sentence_rows:
+    pages_by_node: dict[str, list[dict]] = {}
+    for node_id, page, doc_title in node_page_rows:
         key = str(node_id)
-        sentences_by_node.setdefault(key, []).append({
-            "id": str(sentence.id),
-            "page": sentence.page,
-            "position": sentence.position,
-            "slide_title": sentence.slide_title,
-            "text": sentence.text,
+        pages_by_node.setdefault(key, []).append({
+            "id": str(page.id),
+            "page_number": page.page_number,
+            "global_page": page.global_page,
+            "slide_title": page.slide_title,
+            "body": page.body,
+            "document_title": doc_title,
         })
 
     return {
-        "nodes": [_node_to_dict(n, sentences_by_node.get(str(n.id), [])) for n in nodes],
+        "nodes": [_node_to_dict(n, pages_by_node.get(str(n.id), [])) for n in nodes],
         "edges": [_edge_to_dict(e) for e in edges],
     }
 
@@ -119,7 +136,87 @@ def get_course(course_id: UUID, db: Session = Depends(get_db)):
     course = db.get(Course, course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
-    return _course_to_dict(course)
+    doc_count = db.query(func.count(Document.id)).filter_by(course_id=course_id).scalar()
+    return _course_to_dict(course, doc_count or 0)
+
+
+# --- Documents ---
+
+
+@router.get("/{course_id}/documents")
+def list_documents(course_id: UUID, db: Session = Depends(get_db)):
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    docs = (
+        db.query(Document)
+        .filter_by(course_id=course_id)
+        .order_by(Document.upload_order)
+        .all()
+    )
+    return [
+        {
+            "id": str(d.id),
+            "title": d.title,
+            "filename": d.filename,
+            "upload_order": d.upload_order,
+            "page_count": d.page_count,
+            "ingestion_status": d.ingestion_status,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in docs
+    ]
+
+
+# --- References ---
+
+
+@router.get("/{course_id}/references")
+def list_references(course_id: UUID, db: Session = Depends(get_db)):
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    refs = db.query(Reference).filter_by(course_id=course_id).all()
+    return [
+        {
+            "id": str(r.id),
+            "ref_type": r.ref_type,
+            "title": r.title,
+            "author": r.author,
+            "isbn": r.isbn,
+            "url": r.url,
+        }
+        for r in refs
+    ]
+
+
+@router.post("/{course_id}/references", status_code=201)
+def create_reference(course_id: UUID, body: CreateReferenceRequest, db: Session = Depends(get_db)):
+    course = db.get(Course, course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    ref = Reference(
+        course_id=course_id,
+        ref_type=body.ref_type,
+        title=body.title,
+        author=body.author,
+        isbn=body.isbn,
+        url=body.url,
+    )
+    db.add(ref)
+    db.flush()
+    db.commit()
+    return {"id": str(ref.id), "title": ref.title, "ref_type": ref.ref_type}
+
+
+@router.delete("/{course_id}/references/{ref_id}", status_code=204)
+def delete_reference(course_id: UUID, ref_id: UUID, db: Session = Depends(get_db)):
+    ref = db.get(Reference, ref_id)
+    if not ref or ref.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Reference not found")
+    db.delete(ref)
+    db.flush()
+    db.commit()
 
 
 # --- Node CRUD ---

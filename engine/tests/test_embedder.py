@@ -1,27 +1,14 @@
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 from app.services.embedder import OpenAIEmbedder
-from app.services.extractors.models import RawSentence
 
 
 class TestOpenAIEmbedder:
-    def test_format_text_with_title(self):
-        embedder = OpenAIEmbedder(api_key="fake")
-        sentence = RawSentence(text="Hello world.", page=1, position=0, slide_title="Intro")
-        assert embedder.format_text(sentence) == "[Intro] Hello world."
-
-    def test_format_text_without_title(self):
-        embedder = OpenAIEmbedder(api_key="fake")
-        sentence = RawSentence(text="Hello world.", page=1, position=0, slide_title=None)
-        assert embedder.format_text(sentence) == "Hello world."
-
     @patch("app.services.embedder.OpenAI")
     def test_get_embeddings_batches(self, mock_openai_class):
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
 
-        # Simulate OpenAI response
         mock_embedding = MagicMock()
         mock_embedding.embedding = [0.1] * 1536
         mock_response = MagicMock()

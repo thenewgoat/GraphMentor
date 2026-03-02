@@ -1,0 +1,27 @@
+[project]
+name = "graphmentor"
+version = "0.1.0"
+description = "Adaptive Learning Graph — monorepo root"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "poethepoet>=0.32.0",
+]
+
+[tool.poe.tasks.serve]
+shell = "cd engine && unset VIRTUAL_ENV && uv run uvicorn app.main:app --reload"
+help = "Start the FastAPI dev server"
+
+[tool.poe.tasks.test]
+shell = "cd engine && unset VIRTUAL_ENV && uv run pytest tests/ -v"
+help = "Run all backend tests"
+
+[tool.poe.tasks.migrate]
+shell = "cd engine && unset VIRTUAL_ENV && uv run alembic upgrade head"
+help = "Run Alembic migrations"
+
+[tool.poe.tasks.lint]
+shell = "cd engine && unset VIRTUAL_ENV && uv run ruff check ."
+help = "Lint the backend"

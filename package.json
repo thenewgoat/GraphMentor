@@ -1,0 +1,11 @@
+{
+  "name": "graphmentor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -C web dev",
+    "build": "pnpm -C web build",
+    "lint": "pnpm -C web lint",
+    "typecheck": "pnpm -C web exec tsc --noEmit"
+  }
+}

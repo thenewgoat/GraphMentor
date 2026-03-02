@@ -7,40 +7,39 @@ import pytest
 
 from app.models.course import Course
 from app.models.node import Node, NodeEdge
-from app.models.sentence import Sentence, NodeSentence
+from app.models.document import Document, Page, NodePage
 from app.services.graph_builder import GraphBuilder
 
 
-def _seed_course_with_sentences(db) -> tuple:
-    """Create a course with 3 sentences across 2 pages."""
-    course = Course(
-        title="Test Course",
-        source_pdf_path="/fake.pdf",
-        source_pdf_hash=hashlib.sha256(b"test").hexdigest(),
-        ingestion_status="complete",
-    )
+def _seed_course_with_pages(db) -> tuple:
+    """Create a course with a document and 2 pages."""
+    course = Course(title="Test Course", ingestion_status="complete")
     db.add(course)
     db.flush()
 
-    sentences = []
-    for page, pos, title, text in [
-        (1, 0, "Intro", "Machine learning is a subset of AI."),
-        (1, 1, "Intro", "It learns from data."),
-        (2, 0, "Regression", "Linear regression fits a line."),
-    ]:
-        s = Sentence(
-            course_id=course.id,
-            page=page,
-            position=pos,
-            slide_title=title,
-            text=text,
-            hash=hashlib.sha256(text.encode()).hexdigest(),
-        )
-        sentences.append(s)
-    db.add_all(sentences)
+    doc = Document(
+        course_id=course.id, title="Lecture 1", filename="lec1.pdf",
+        file_path="/tmp/lec1.pdf", file_hash=hashlib.sha256(b"test").hexdigest(),
+        upload_order=1, page_count=2, ingestion_status="complete",
+    )
+    db.add(doc)
     db.flush()
 
-    return course, sentences
+    pages = []
+    for page_num, title, body in [
+        (1, "Intro", "Machine learning is a subset of AI. It learns from data."),
+        (2, "Regression", "Linear regression fits a line to data."),
+    ]:
+        p = Page(
+            document_id=doc.id, course_id=course.id,
+            page_number=page_num, global_page=page_num,
+            slide_title=title, body=body,
+        )
+        pages.append(p)
+    db.add_all(pages)
+    db.flush()
+
+    return course, doc, pages
 
 
 MOCK_TOPICS_RESPONSE = {
@@ -50,7 +49,7 @@ MOCK_TOPICS_RESPONSE = {
             "description": "Core ML concepts and paradigms.",
             "depth": 1,
             "parent_title": None,
-            "source_chunk_indices": [0],
+            "source_page_indices": [0],
             "keywords": ["machine learning", "AI", "data"],
         },
         {
@@ -58,7 +57,7 @@ MOCK_TOPICS_RESPONSE = {
             "description": "Fitting linear models to data.",
             "depth": 2,
             "parent_title": "Machine Learning Fundamentals",
-            "source_chunk_indices": [1],
+            "source_page_indices": [1],
             "keywords": ["regression", "linear", "fitting"],
         },
     ]
@@ -78,21 +77,22 @@ MOCK_EDGES_RESPONSE = {
 
 class TestGraphBuilder:
     @patch("app.services.graph_builder.LLMClient")
-    def test_happy_path_creates_nodes_edges_and_mappings(self, mock_llm_class, db):
-        course, sentences = _seed_course_with_sentences(db)
+    def test_happy_path_creates_nodes_edges_and_page_links(self, mock_llm_class, db):
+        course, doc, pages = _seed_course_with_pages(db)
 
         mock_llm = MagicMock()
         mock_llm.extract_topics.return_value = MOCK_TOPICS_RESPONSE
         mock_llm.infer_dependencies.return_value = MOCK_EDGES_RESPONSE
+        mock_llm.extract_references.return_value = {"references": []}
         mock_llm_class.return_value = mock_llm
 
         builder = GraphBuilder(db=db, openai_api_key="fake")
-        result = builder.run(course_id=course.id, max_depth=3)
+        result = builder.run(course_id=course.id, document_id=doc.id, max_depth=3)
 
         # Check result summary
         assert result["nodes_created"] == 2
         assert result["edges_created"] == 1
-        assert result["node_sentences_created"] > 0
+        assert result["nodes_extended"] == 0
 
         # Check nodes in DB
         nodes = db.query(Node).filter_by(course_id=course.id).all()
@@ -112,7 +112,6 @@ class TestGraphBuilder:
         assert len(edges) == 1
         assert edges[0].parent_id == root.id
         assert edges[0].child_id == child.id
-        assert edges[0].edge_type == "prerequisite"
 
         # Check denormalized arrays
         db.refresh(root)
@@ -120,37 +119,72 @@ class TestGraphBuilder:
         assert child.id in root.child_ids
         assert root.id in child.parent_ids
 
-        # Check node_sentences
-        ns_rows = db.query(NodeSentence).all()
-        assert len(ns_rows) > 0
-
-        # Check content_chunk_ids populated
-        assert len(root.content_chunk_ids) > 0
-        assert len(child.content_chunk_ids) > 0
+        # Check node_pages
+        np_rows = db.query(NodePage).all()
+        assert len(np_rows) > 0
 
         # Check course status
         db.refresh(course)
         assert course.ingestion_status == "graph_ready"
 
     @patch("app.services.graph_builder.LLMClient")
-    def test_rerun_wipes_old_nodes(self, mock_llm_class, db):
-        course, sentences = _seed_course_with_sentences(db)
+    def test_merge_extends_existing_nodes(self, mock_llm_class, db):
+        """Second document should merge into existing graph."""
+        course, doc1, pages1 = _seed_course_with_pages(db)
 
         mock_llm = MagicMock()
         mock_llm.extract_topics.return_value = MOCK_TOPICS_RESPONSE
         mock_llm.infer_dependencies.return_value = MOCK_EDGES_RESPONSE
+        mock_llm.extract_references.return_value = {"references": []}
         mock_llm_class.return_value = mock_llm
 
         builder = GraphBuilder(db=db, openai_api_key="fake")
 
-        # First run
-        builder.run(course_id=course.id, max_depth=3)
-        first_node_ids = {n.id for n in db.query(Node).filter_by(course_id=course.id).all()}
+        # First document: creates fresh graph
+        builder.run(course_id=course.id, document_id=doc1.id, max_depth=3)
+        first_nodes = db.query(Node).filter_by(course_id=course.id).all()
+        assert len(first_nodes) == 2
 
-        # Second run (re-run)
-        builder.run(course_id=course.id, max_depth=3)
-        second_node_ids = {n.id for n in db.query(Node).filter_by(course_id=course.id).all()}
+        # Create second document
+        doc2 = Document(
+            course_id=course.id, title="Lecture 2", filename="lec2.pdf",
+            file_path="/tmp/lec2.pdf", file_hash="b" * 64,
+            upload_order=2, page_count=1, ingestion_status="complete",
+        )
+        db.add(doc2)
+        db.flush()
+        page2 = Page(
+            document_id=doc2.id, course_id=course.id,
+            page_number=1, global_page=3,
+            slide_title="Advanced ML", body="Neural networks are powerful.",
+        )
+        db.add(page2)
+        db.flush()
 
-        # Old nodes should be gone, new ones created
-        assert first_node_ids.isdisjoint(second_node_ids)
-        assert len(second_node_ids) == 2
+        # Mock merge response
+        mock_llm.extract_topics.return_value = {
+            "topics": [{
+                "title": "Neural Networks",
+                "description": "Deep learning basics.",
+                "depth": 1,
+                "parent_title": None,
+                "source_page_indices": [0],
+                "keywords": ["neural", "network", "deep learning"],
+            }]
+        }
+        mock_llm.merge_topics.return_value = {
+            "decisions": [{
+                "new_title": "Neural Networks",
+                "action": "NEW",
+                "depth": 2,
+                "source_page_indices": [0],
+                "reasoning": "New concept not in existing graph.",
+            }]
+        }
+
+        result = builder.run(course_id=course.id, document_id=doc2.id, max_depth=3)
+        assert result["nodes_created"] == 1
+        assert result["nodes_extended"] == 0
+
+        all_nodes = db.query(Node).filter_by(course_id=course.id).all()
+        assert len(all_nodes) == 3

@@ -17,17 +17,17 @@ class TopicValidator:
         2. Unique titles: no duplicate topic titles
         3. Parent references: parent_title exists and is shallower
         4. Depth cap: no topic exceeds max_depth
-        5. Chunk indices valid: all indices in [0, num_chunks)
-        6. Non-empty chunk indices: every topic references at least one chunk
+        5. Page indices valid: all indices in [0, num_pages)
+        6. Non-empty page indices: every topic references at least one page
         7. Keywords count: each topic has 3-5 keywords
 
     Soft checks (log warnings):
-        8. Broad topics: warns if a topic covers > 40% of chunks
+        8. Broad topics: warns if a topic covers > 40% of pages
         9. Single-child parents: warns if a parent has only 1 child
     """
 
-    def __init__(self, num_chunks: int, max_depth: int):
-        self.num_chunks = num_chunks
+    def __init__(self, num_pages: int, max_depth: int):
+        self.num_pages = num_pages
         self.max_depth = max_depth
 
     def validate(self, data: dict) -> dict:
@@ -74,18 +74,18 @@ class TopicValidator:
                     f"exceeds max_depth {self.max_depth}"
                 )
 
-            # 5. Chunk indices valid
-            for idx in topic["source_chunk_indices"]:
-                if idx < 0 or idx >= self.num_chunks:
+            # 5. Page indices valid
+            for idx in topic["source_page_indices"]:
+                if idx < 0 or idx >= self.num_pages:
                     raise ValidationError(
-                        f"Topic '{topic['title']}' references invalid chunk "
-                        f"index {idx} (valid: 0-{self.num_chunks - 1})"
+                        f"Topic '{topic['title']}' references invalid page "
+                        f"index {idx} (valid: 0-{self.num_pages - 1})"
                     )
 
-            # 6. Non-empty chunk indices
-            if len(topic["source_chunk_indices"]) == 0:
+            # 6. Non-empty page indices
+            if len(topic["source_page_indices"]) == 0:
                 raise ValidationError(
-                    f"Topic '{topic['title']}' has empty source_chunk_indices"
+                    f"Topic '{topic['title']}' has empty source_page_indices"
                 )
 
             # 7. Keywords count
@@ -98,10 +98,10 @@ class TopicValidator:
 
         # 8. Warn: broad topics
         for topic in topics:
-            coverage = len(topic["source_chunk_indices"]) / self.num_chunks
+            coverage = len(topic["source_page_indices"]) / self.num_pages
             if coverage > 0.4:
                 logger.warning(
-                    "Topic '%s' covers %.0f%% of chunks — consider splitting",
+                    "Topic '%s' covers %.0f%% of pages — consider splitting",
                     topic["title"],
                     coverage * 100,
                 )
@@ -119,6 +119,31 @@ class TopicValidator:
                 )
 
         return data
+
+
+class MergeValidator:
+    """Validates merge decisions from LLM."""
+
+    def __init__(self, existing_titles: set[str], num_new_pages: int):
+        self.existing_titles = existing_titles
+        self.num_new_pages = num_new_pages
+
+    def validate(self, data: dict) -> dict:
+        if "decisions" not in data:
+            raise ValidationError("Response missing 'decisions' array")
+
+        valid = []
+        for d in data["decisions"]:
+            action = d.get("action", "").upper()
+            if action not in ("NEW", "EXTEND", "SKIP"):
+                logger.warning(f"Unknown action '{action}', skipping")
+                continue
+            if action == "EXTEND" and d.get("existing_node_title") not in self.existing_titles:
+                logger.warning(f"EXTEND references unknown node '{d.get('existing_node_title')}', converting to NEW")
+                d["action"] = "NEW"
+            valid.append(d)
+
+        return {"decisions": valid}
 
 
 class DependencyValidator:

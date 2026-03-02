@@ -13,13 +13,12 @@ export interface Course {
   id: string;
   title: string;
   description: string | null;
-  source_pdf_path: string;
-  source_pdf_hash: string;
   mastery_threshold: number;
   time_decay_lambda: number;
   max_follow_ups_per_session: number;
   topic_radius: number;
   ingestion_status: IngestionStatus;
+  document_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -30,9 +29,9 @@ export interface Node {
   title: string;
   parent_ids: string[];
   child_ids: string[];
-  content_chunk_ids: string[];
   depth: number;
   order_index: number;
+  supplementary_content: string | null;
   application_examples: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -97,4 +96,47 @@ export interface Attempt {
   response_time_seconds: number;
   attempt_context: AttemptContext;
   created_at: string;
+}
+
+// === New types for pipeline overhaul ===
+
+export type DocIngestionStatus = "pending" | "processing" | "complete" | "failed";
+
+export interface DocumentInfo {
+  id: string;
+  title: string;
+  filename: string;
+  upload_order: number;
+  page_count: number | null;
+  ingestion_status: DocIngestionStatus;
+  created_at: string;
+}
+
+export interface PageData {
+  id: string;
+  page_number: number;
+  global_page: number;
+  slide_title: string | null;
+  body: string;
+  document_title: string;
+}
+
+export interface ReferenceInfo {
+  id: string;
+  ref_type: "book" | "url";
+  title: string;
+  author: string | null;
+  isbn: string | null;
+  url: string | null;
+}
+
+export interface OrganizeSuggestion {
+  id: number;
+  type: "MERGE" | "SPLIT" | "REORDER" | "REPARENT";
+  node_titles: string[];
+  merged_title?: string;
+  new_parent_title?: string;
+  new_order_index?: number;
+  split_into?: { title: string; page_ids: string[] }[];
+  reasoning: string;
 }

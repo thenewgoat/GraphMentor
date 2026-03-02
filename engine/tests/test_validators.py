@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.validators import TopicValidator, ValidationError
+from app.services.validators import TopicValidator, DependencyValidator, MergeValidator, ValidationError
 
 
 def _valid_topics():
@@ -12,7 +12,7 @@ def _valid_topics():
                 "description": "Introduction to ML concepts.",
                 "depth": 1,
                 "parent_title": None,
-                "source_chunk_indices": [0, 1],
+                "source_page_indices": [0, 1],
                 "keywords": ["machine learning", "supervised", "unsupervised"],
             },
             {
@@ -20,7 +20,7 @@ def _valid_topics():
                 "description": "Fitting a line to data points.",
                 "depth": 2,
                 "parent_title": "Machine Learning Basics",
-                "source_chunk_indices": [1],
+                "source_page_indices": [1],
                 "keywords": ["regression", "linear", "least squares"],
             },
             {
@@ -28,7 +28,7 @@ def _valid_topics():
                 "description": "Tree-based classification and regression.",
                 "depth": 2,
                 "parent_title": "Machine Learning Basics",
-                "source_chunk_indices": [2],
+                "source_page_indices": [2],
                 "keywords": ["decision tree", "split", "entropy"],
             },
         ]
@@ -37,47 +37,84 @@ def _valid_topics():
 
 class TestTopicValidator:
     def test_valid_response_passes(self):
-        validator = TopicValidator(num_chunks=3, max_depth=3)
+        validator = TopicValidator(num_pages=3, max_depth=3)
         result = validator.validate(_valid_topics())
         assert result == _valid_topics()
 
     def test_duplicate_titles_rejected(self):
         data = _valid_topics()
         data["topics"][2]["title"] = "Linear Regression"
-        validator = TopicValidator(num_chunks=3, max_depth=3)
+        validator = TopicValidator(num_pages=3, max_depth=3)
         with pytest.raises(ValidationError, match="[Dd]uplicate"):
             validator.validate(data)
 
     def test_invalid_parent_title_rejected(self):
         data = _valid_topics()
         data["topics"][1]["parent_title"] = "Nonexistent Topic"
-        validator = TopicValidator(num_chunks=3, max_depth=3)
+        validator = TopicValidator(num_pages=3, max_depth=3)
         with pytest.raises(ValidationError, match="[Pp]arent"):
             validator.validate(data)
 
     def test_depth_exceeds_max_rejected(self):
         data = _valid_topics()
         data["topics"][1]["depth"] = 4
-        validator = TopicValidator(num_chunks=3, max_depth=3)
+        validator = TopicValidator(num_pages=3, max_depth=3)
         with pytest.raises(ValidationError, match="[Dd]epth"):
             validator.validate(data)
 
-    def test_invalid_chunk_index_rejected(self):
+    def test_invalid_page_index_rejected(self):
         data = _valid_topics()
-        data["topics"][0]["source_chunk_indices"] = [0, 99]
-        validator = TopicValidator(num_chunks=3, max_depth=3)
-        with pytest.raises(ValidationError, match="[Cc]hunk"):
+        data["topics"][0]["source_page_indices"] = [0, 99]
+        validator = TopicValidator(num_pages=3, max_depth=3)
+        with pytest.raises(ValidationError, match="[Pp]age"):
             validator.validate(data)
 
-    def test_empty_chunk_indices_rejected(self):
+    def test_empty_page_indices_rejected(self):
         data = _valid_topics()
-        data["topics"][0]["source_chunk_indices"] = []
-        validator = TopicValidator(num_chunks=3, max_depth=3)
-        with pytest.raises(ValidationError, match="[Cc]hunk"):
+        data["topics"][0]["source_page_indices"] = []
+        validator = TopicValidator(num_pages=3, max_depth=3)
+        with pytest.raises(ValidationError, match="[Pp]age"):
             validator.validate(data)
 
 
-from app.services.validators import DependencyValidator
+class TestMergeValidator:
+    def test_valid_merge_decisions_pass(self):
+        data = {
+            "decisions": [
+                {"new_title": "X", "action": "NEW", "source_page_indices": [0], "reasoning": "new"},
+                {"new_title": "Y", "action": "EXTEND", "existing_node_title": "A", "source_page_indices": [1], "reasoning": "overlap"},
+                {"new_title": "Z", "action": "SKIP", "reasoning": "covered"},
+            ]
+        }
+        validator = MergeValidator(existing_titles={"A", "B"}, num_new_pages=3)
+        result = validator.validate(data)
+        assert len(result["decisions"]) == 3
+
+    def test_extend_unknown_node_converted_to_new(self):
+        data = {
+            "decisions": [
+                {"new_title": "X", "action": "EXTEND", "existing_node_title": "Nonexistent", "reasoning": "bad ref"},
+            ]
+        }
+        validator = MergeValidator(existing_titles={"A"}, num_new_pages=2)
+        result = validator.validate(data)
+        assert result["decisions"][0]["action"] == "NEW"
+
+    def test_unknown_action_skipped(self):
+        data = {
+            "decisions": [
+                {"new_title": "X", "action": "UNKNOWN", "reasoning": "?"},
+                {"new_title": "Y", "action": "NEW", "reasoning": "ok"},
+            ]
+        }
+        validator = MergeValidator(existing_titles=set(), num_new_pages=2)
+        result = validator.validate(data)
+        assert len(result["decisions"]) == 1
+
+    def test_missing_decisions_raises(self):
+        validator = MergeValidator(existing_titles=set(), num_new_pages=1)
+        with pytest.raises(ValidationError, match="decisions"):
+            validator.validate({"topics": []})
 
 
 def _topics_for_deps():
@@ -113,7 +150,7 @@ class TestDependencyValidator:
         )
         validator = DependencyValidator(topics=_topics_for_deps())
         result = validator.validate(data)
-        assert len(result["edges"]) == 2  # ghost edge removed
+        assert len(result["edges"]) == 2
 
     def test_cycle_detected_and_broken(self):
         data = {
@@ -125,7 +162,6 @@ class TestDependencyValidator:
         validator = DependencyValidator(topics=_topics_for_deps())
         result = validator.validate(data)
         assert len(result["edges"]) == 1
-        # The shorter reasoning ("Cycle.") should be removed
         assert result["edges"][0]["reasoning"] == "Intermediate leads to Advanced material."
 
     def test_root_topic_protection(self):
@@ -151,5 +187,4 @@ class TestDependencyValidator:
         result = validator.validate(data)
         prereqs_to_final = [e for e in result["edges"] if e["to_title"] == "Final" and e["edge_type"] == "prerequisite"]
         assert len(prereqs_to_final) == 3
-        # The shortest reasoning ("Short.") should be removed
         assert all(e["reasoning"] != "Short." for e in prereqs_to_final)

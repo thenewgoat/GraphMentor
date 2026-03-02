@@ -5,6 +5,9 @@ docs/
 .claude/
 CLAUDE.md
 
+# Worktrees
+.worktrees/
+
 # Python
 __pycache__/
 *.py[cod]

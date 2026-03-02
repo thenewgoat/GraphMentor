@@ -2,13 +2,11 @@ import logging
 
 from openai import OpenAI
 
-from app.services.extractors.models import RawSentence
-
 logger = logging.getLogger(__name__)
 
 
 class OpenAIEmbedder:
-    """Generate embeddings via OpenAI and store in ChromaDB."""
+    """Generate embeddings via OpenAI."""
 
     def __init__(
         self,
@@ -19,12 +17,6 @@ class OpenAIEmbedder:
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.batch_size = batch_size
-
-    def format_text(self, sentence: RawSentence) -> str:
-        """Format sentence for embedding with slide title prefix."""
-        if sentence.slide_title:
-            return f"[{sentence.slide_title}] {sentence.text}"
-        return sentence.text
 
     def get_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Get embeddings for a list of texts, batched by self.batch_size."""

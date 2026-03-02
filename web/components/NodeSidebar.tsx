@@ -82,18 +82,34 @@ export default function NodeSidebar({
         </div>
       )}
 
-      {node.sentences.length > 0 && (
+      {node.pages.length > 0 && (
         <div className="mb-4">
           <h4 className="mb-1 text-sm font-medium text-neutral-500">
-            Source Sentences ({node.sentences.length})
+            Source Pages ({node.pages.length})
           </h4>
           <ul className="max-h-60 space-y-2 overflow-y-auto">
-            {node.sentences.map((s) => (
-              <li key={s.id} className="rounded bg-neutral-50 p-2 text-xs dark:bg-neutral-900">
-                <span className="text-neutral-400">p.{s.page}</span> {s.text}
+            {node.pages.map((p) => (
+              <li key={p.id} className="rounded bg-neutral-50 p-2 text-xs dark:bg-neutral-900">
+                <div className="mb-1 flex items-center gap-2 text-neutral-400">
+                  <span>p.{p.global_page}</span>
+                  {p.slide_title && <span>&mdash; {p.slide_title}</span>}
+                  <span className="text-neutral-300">({p.document_title})</span>
+                </div>
+                <p>{p.body.slice(0, 200)}{p.body.length > 200 ? "..." : ""}</p>
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {node.supplementary_content && (
+        <div className="mb-4">
+          <h4 className="mb-1 text-sm font-medium text-neutral-500">
+            Supplementary Content
+          </h4>
+          <div className="rounded bg-blue-50 p-2 text-xs dark:bg-blue-900/20">
+            {node.supplementary_content}
+          </div>
         </div>
       )}
 

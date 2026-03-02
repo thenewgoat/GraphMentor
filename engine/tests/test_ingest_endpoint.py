@@ -32,9 +32,10 @@ class TestIngestEndpoint:
         mock_pipeline = MagicMock()
         mock_pipeline.run.return_value = {
             "course_id": "fake-uuid",
+            "document_id": "fake-doc-uuid",
             "title": "My Course",
-            "sentences_count": 5,
-            "pages_processed": 2,
+            "pages_count": 2,
+            "upload_order": 1,
             "status": "complete",
         }
         mock_pipeline_class.return_value = mock_pipeline
@@ -48,7 +49,34 @@ class TestIngestEndpoint:
         assert response.status_code == 201
         body = response.json()
         assert body["status"] == "complete"
-        assert body["sentences_count"] == 5
+        assert body["pages_count"] == 2
+
+    @patch("app.routers.ingest.IngestPipeline")
+    def test_upload_with_course_id(self, mock_pipeline_class, client, sample_pdf_bytes):
+        _, pdf_bytes = sample_pdf_bytes
+        import uuid
+        cid = str(uuid.uuid4())
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run.return_value = {
+            "course_id": cid,
+            "document_id": str(uuid.uuid4()),
+            "title": "Doc 2",
+            "pages_count": 3,
+            "upload_order": 2,
+            "status": "complete",
+        }
+        mock_pipeline_class.return_value = mock_pipeline
+
+        response = client.post(
+            "/ingest/upload",
+            data={"title": "Doc 2", "course_id": cid},
+            files={"file": ("slides2.pdf", pdf_bytes, "application/pdf")},
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["upload_order"] == 2
 
     def test_upload_rejects_non_pdf(self, client):
         response = client.post(

@@ -16,8 +16,6 @@ class Course(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    source_pdf_path = Column(Text, nullable=False)
-    source_pdf_hash = Column(String(64), nullable=False, unique=True)
     mastery_threshold = Column(Float, nullable=False, default=75.0)
     time_decay_lambda = Column(Float, nullable=False, default=0.1)
     max_follow_ups_per_session = Column(Integer, nullable=False, default=5)
@@ -37,6 +35,7 @@ class Course(Base):
 
     # Relationships
     nodes = relationship("Node", back_populates="course", cascade="all, delete-orphan")
+    documents = relationship("Document", back_populates="course", cascade="all, delete-orphan")
     students = relationship(
         "Student", back_populates="course", cascade="all, delete-orphan"
     )
