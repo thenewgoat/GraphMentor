@@ -2,7 +2,7 @@
 
 // === Enums / Union Types ===
 
-export type EdgeType = "prerequisite" | "related" | "subtopic" | "method_of" | "motivation" | "application";
+export type EdgeCategory = "dependency" | "association" | "hierarchy";
 export type LearningState = "baseline" | "learning" | "review" | "exam";
 export type IngestionStatus = "pending" | "processing" | "complete" | "failed" | "graph_ready";
 export type QuestionType = "multiple_choice" | "short_answer";
@@ -14,6 +14,7 @@ export type AttemptContext = "baseline" | "quiz" | "exam";
 export interface Course {
   id: string;
   title: string;
+  topic_title: string | null;
   description: string | null;
   mastery_threshold: number;
   time_decay_lambda: number;
@@ -33,6 +34,7 @@ export interface Node {
   child_ids: string[];
   depth: number;
   order_index: number;
+  node_type: "concept" | "group";
   supplementary_content: string | null;
   application_examples: Record<string, unknown> | null;
   created_at: string;
@@ -42,7 +44,8 @@ export interface Node {
 export interface NodeEdge {
   parent_id: string;
   child_id: string;
-  edge_type: EdgeType;
+  edge_category: EdgeCategory;
+  edge_label: string;
 }
 
 export interface Student {
@@ -134,9 +137,11 @@ export interface ReferenceInfo {
 
 export interface OrganizeSuggestion {
   id: number;
-  type: "MERGE" | "SPLIT" | "REORDER" | "REPARENT";
+  type: "MERGE" | "SPLIT" | "REORDER" | "REPARENT" | "CREATE_GROUP" | "DISSOLVE_GROUP";
   node_titles: string[];
   merged_title?: string;
+  group_title?: string;
+  children?: string[];
   new_parent_title?: string;
   new_order_index?: number;
   split_into?: { title: string; page_ids: string[] }[];

@@ -25,55 +25,95 @@ import * as api from "@/lib/api";
 
 interface GraphCanvasProps {
   courseId: string;
+  courseTitle: string;
   graphData: GraphData;
   onNodeSelect: (nodeId: string | null) => void;
   onGraphChange: () => void;
 }
 
+const FALLBACK_ROOT_ID = "__course_root__";
+
 const nodeTypes = { topic: GraphNode };
 
 const EDGE_STYLES: Record<string, { color: string; dash?: string; animated?: boolean }> = {
-  prerequisite: { color: "#3b82f6", animated: true },
-  subtopic: { color: "#6b7280" },
-  method_of: { color: "#22c55e", dash: "5 5" },
-  motivation: { color: "#f97316", dash: "5 5" },
-  application: { color: "#a855f7", dash: "8 4" },
-  related: { color: "#6b7280", dash: "3 3" },
+  dependency: { color: "#3b82f6", animated: true },
+  association: { color: "#6b7280", dash: "5 5" },
+  hierarchy: { color: "#22c55e" },
 };
 
 function toReactFlowElements(
   graphData: GraphData,
+  courseTitle: string,
   onRename: (id: string, title: string) => void,
 ) {
-  const nodes: RFNode[] = graphData.nodes.map((n) => ({
-    id: n.id,
-    type: "topic" as const,
-    position: { x: 0, y: 0 },
-    data: { label: n.title, depth: n.depth, onRename },
-  }));
+  const hasRootNode = graphData.nodes.some((n) => n.depth === 0);
 
-  const edges: RFEdge[] = graphData.edges.map((e) => {
-    const style = EDGE_STYLES[e.edge_type] ?? EDGE_STYLES.related;
-    return {
-      id: `${e.parent_id}-${e.child_id}`,
-      source: e.parent_id,
-      target: e.child_id,
-      label: e.edge_type.replace("_", " "),
-      labelStyle: { fontSize: 10, fill: style.color },
-      markerEnd: { type: MarkerType.ArrowClosed, color: style.color },
-      style: {
-        stroke: style.color,
-        strokeDasharray: style.dash,
+  const nodes: RFNode[] = [
+    // Fallback synthetic root if no depth-0 node exists (old courses)
+    ...(!hasRootNode
+      ? [
+          {
+            id: FALLBACK_ROOT_ID,
+            type: "topic" as const,
+            position: { x: 0, y: 0 },
+            data: { label: courseTitle, depth: 0, nodeType: "root" as const, onRename: () => {} },
+          },
+        ]
+      : []),
+    ...graphData.nodes.map((n) => ({
+      id: n.id,
+      type: "topic" as const,
+      position: { x: 0, y: 0 },
+      data: {
+        label: n.title,
+        depth: n.depth,
+        nodeType: n.depth === 0 ? ("root" as const) : n.node_type,
+        onRename: n.depth === 0 ? () => {} : onRename,
       },
-      animated: style.animated ?? false,
-    };
-  });
+    })),
+  ];
+
+  // Fallback edges from synthetic root to depth-1 nodes (old courses only)
+  const fallbackEdges: RFEdge[] = !hasRootNode
+    ? graphData.nodes
+        .filter((n) => n.depth === 1)
+        .map((n) => ({
+          id: `${FALLBACK_ROOT_ID}-${n.id}`,
+          source: FALLBACK_ROOT_ID,
+          target: n.id,
+          label: "",
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#8b5cf6" },
+          style: { stroke: "#8b5cf6" },
+          animated: false,
+        }))
+    : [];
+
+  const edges: RFEdge[] = [
+    ...fallbackEdges,
+    ...graphData.edges.map((e) => {
+      const style = EDGE_STYLES[e.edge_category] ?? EDGE_STYLES.association;
+      return {
+        id: `${e.parent_id}-${e.child_id}`,
+        source: e.parent_id,
+        target: e.child_id,
+        label: e.edge_label,
+        labelStyle: { fontSize: 10, fill: style.color },
+        markerEnd: { type: MarkerType.ArrowClosed, color: style.color },
+        style: {
+          stroke: style.color,
+          strokeDasharray: style.dash,
+        },
+        animated: style.animated ?? false,
+      };
+    }),
+  ];
 
   return { nodes, edges };
 }
 
 export default function GraphCanvas({
   courseId,
+  courseTitle,
   graphData,
   onNodeSelect,
   onGraphChange,
@@ -87,8 +127,8 @@ export default function GraphCanvas({
   );
 
   const elements = useMemo(
-    () => toReactFlowElements(graphData, handleRename),
-    [graphData, handleRename],
+    () => toReactFlowElements(graphData, courseTitle, handleRename),
+    [graphData, courseTitle, handleRename],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(elements.nodes);
@@ -127,6 +167,7 @@ export default function GraphCanvas({
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: RFNode) => {
+      if (node.data.nodeType === "root" || node.id === FALLBACK_ROOT_ID) return;
       onNodeSelect(node.id);
     },
     [onNodeSelect],

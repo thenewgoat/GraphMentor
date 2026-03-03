@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     search_provider: str = "wikipedia"
     enrichment_word_threshold: int = 100
+    embedding_merge_threshold: float = 0.85
 
     model_config = {"env_file": ["../.env", ".env"], "env_file_encoding": "utf-8"}
 

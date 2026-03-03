@@ -8,21 +8,22 @@ import { ReactFlowProvider } from "@xyflow/react";
 
 import GraphCanvas from "@/components/GraphCanvas";
 import NodeSidebar from "@/components/NodeSidebar";
-import { GraphData, GraphNode, getGraph } from "@/lib/api";
+import { GraphData, GraphNode, Course, getGraph, getCourse } from "@/lib/api";
 
 export default function GraphEditorPage() {
   const params = useParams();
   const courseId = params.id as string;
 
   const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const fetchGraph = useCallback(() => {
     setLoading(true);
-    getGraph(courseId)
-      .then(setGraphData)
+    Promise.all([getGraph(courseId), getCourse(courseId)])
+      .then(([g, c]) => { setGraphData(g); setCourse(c); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [courseId]);
@@ -54,6 +55,7 @@ export default function GraphEditorPage() {
           <ReactFlowProvider>
             <GraphCanvas
               courseId={courseId}
+              courseTitle={course?.title ?? "Course"}
               graphData={graphData}
               onNodeSelect={setSelectedNodeId}
               onGraphChange={fetchGraph}

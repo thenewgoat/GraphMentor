@@ -1,4 +1,4 @@
-"""Integration test: runs the full pipeline with mocked OpenAI only."""
+"""Integration test: runs the full pipeline (Stage 0 only, no LLM/ChromaDB)."""
 import fitz
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -35,18 +35,7 @@ def multi_slide_pdf(tmp_path) -> Path:
 
 
 class TestFullPipeline:
-    @patch("app.services.ingest_pipeline.OpenAIEmbedder")
-    @patch("app.services.ingest_pipeline.get_chroma_client")
-    def test_end_to_end(self, mock_chroma, mock_embedder_class, db, multi_slide_pdf, tmp_path):
-        mock_collection = MagicMock()
-        mock_client = MagicMock()
-        mock_client.get_or_create_collection.return_value = mock_collection
-        mock_chroma.return_value = mock_client
-
-        mock_embedder = MagicMock()
-        mock_embedder.get_embeddings.side_effect = lambda texts: [[0.1] * 1536] * len(texts)
-        mock_embedder_class.return_value = mock_embedder
-
+    def test_end_to_end(self, db, multi_slide_pdf, tmp_path):
         pipeline = IngestPipeline(
             db=db, upload_dir=tmp_path / "uploads", openai_api_key="fake"
         )
@@ -82,26 +71,21 @@ class TestFullPipeline:
         # Page 2
         assert "Dr. Smith" in pages[1].body
 
-        # ChromaDB received 2 pages
-        call_args = mock_collection.add.call_args
-        assert len(call_args.kwargs["ids"]) == 2
-
-    @patch("app.services.ingest_pipeline.OpenAIEmbedder")
-    @patch("app.services.ingest_pipeline.get_chroma_client")
-    def test_rollback_on_failure(self, mock_chroma, mock_embedder_class, db, multi_slide_pdf, tmp_path):
-        mock_embedder = MagicMock()
-        mock_embedder.get_embeddings.side_effect = RuntimeError("API down")
-        mock_embedder_class.return_value = mock_embedder
+    @patch("app.services.ingest_pipeline.SlideExtractor")
+    def test_rollback_on_failure(self, mock_extractor_class, db, multi_slide_pdf, tmp_path):
+        mock_extractor = MagicMock()
+        mock_extractor.extract.side_effect = RuntimeError("Extraction failed")
+        mock_extractor_class.return_value = mock_extractor
 
         pipeline = IngestPipeline(
             db=db, upload_dir=tmp_path / "uploads", openai_api_key="fake"
         )
 
-        with pytest.raises(RuntimeError, match="API down"):
+        with pytest.raises(RuntimeError, match="Extraction failed"):
             pipeline.run(pdf_path=multi_slide_pdf, title="Fail Course")
 
-        # Course should exist (created before document fails) but document should be deleted
+        # Course should exist (created before extraction fails) but document should be deleted
         course = db.query(Course).filter_by(title="Fail Course").first()
-        if course:
-            docs = db.query(Document).filter_by(course_id=course.id).all()
-            assert len(docs) == 0
+        assert course is not None
+        docs = db.query(Document).filter_by(course_id=course.id).all()
+        assert len(docs) == 0

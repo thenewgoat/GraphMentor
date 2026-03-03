@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.postgres import get_db
-from app.db.vector import delete_embeddings
+from app.db.vector import delete_collection, delete_embeddings
 from app.models.course import Course
 from app.models.node import Node, NodeEdge
 from app.models.document import Document, Page, NodePage, Reference
@@ -31,7 +31,8 @@ class UpdateNodeRequest(BaseModel):
 class CreateEdgeRequest(BaseModel):
     parent_id: str
     child_id: str
-    edge_type: str = "prerequisite"
+    edge_category: str = "dependency"
+    edge_label: str = "relates to"
 
 
 class CreateReferenceRequest(BaseModel):
@@ -49,6 +50,7 @@ def _course_to_dict(course: Course, doc_count: int = 0) -> dict:
     return {
         "id": str(course.id),
         "title": course.title,
+        "topic_title": course.topic_title,
         "description": course.description,
         "mastery_threshold": course.mastery_threshold,
         "time_decay_lambda": course.time_decay_lambda,
@@ -77,6 +79,17 @@ def create_course(body: CreateCourseRequest, db: Session = Depends(get_db)):
     course = Course(title=body.title, ingestion_status="pending")
     db.add(course)
     db.flush()
+    misc_node = Node(
+        course_id=course.id,
+        title="Miscellaneous",
+        depth=1,
+        order_index=999,
+        node_type="group",
+        parent_ids=[],
+        child_ids=[],
+    )
+    db.add(misc_node)
+    db.flush()
     db.commit()
     return _course_to_dict(course, 0)
 
@@ -90,6 +103,7 @@ def _node_to_dict(node: Node, pages: list[dict]) -> dict:
         "child_ids": [str(c) for c in (node.child_ids or [])],
         "depth": node.depth,
         "order_index": node.order_index,
+        "node_type": node.node_type,
         "application_examples": node.application_examples,
         "supplementary_content": node.supplementary_content,
         "pages": pages,
@@ -100,7 +114,8 @@ def _edge_to_dict(edge: NodeEdge) -> dict:
     return {
         "parent_id": str(edge.parent_id),
         "child_id": str(edge.child_id),
-        "edge_type": edge.edge_type,
+        "edge_category": edge.edge_category,
+        "edge_label": edge.edge_label,
     }
 
 
@@ -162,12 +177,11 @@ def delete_course(course_id: UUID, db: Session = Depends(get_db)):
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Collect all page IDs across all documents for embedding cleanup
-    pages = db.query(Page).filter_by(course_id=course_id).all()
-    page_ids = [str(p.id) for p in pages]
+    # Delete entire ChromaDB collection for this course
+    delete_collection(str(course_id))
 
-    # Delete embeddings from ChromaDB
-    delete_embeddings(course_id=str(course_id), page_ids=page_ids)
+    # Collect pages for join-table cleanup
+    pages = db.query(Page).filter_by(course_id=course_id).all()
 
     # Delete PDF files from disk
     docs = db.query(Document).filter_by(course_id=course_id).all()
@@ -230,12 +244,6 @@ def delete_document(course_id: UUID, doc_id: UUID, db: Session = Depends(get_db)
     if not doc or doc.course_id != course_id:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Collect page IDs for embedding cleanup
-    page_ids = [str(p.id) for p in doc.pages]
-
-    # Delete embeddings from ChromaDB
-    delete_embeddings(course_id=str(course_id), page_ids=page_ids)
-
     # Delete PDF from disk
     if doc.file_path:
         file_path = Path(doc.file_path)
@@ -255,6 +263,11 @@ def delete_document(course_id: UUID, doc_id: UUID, db: Session = Depends(get_db)
         .having(func.count(NodePage.page_id) == 0)
         .all()
     )
+
+    # Delete embeddings for orphan nodes from ChromaDB
+    if orphan_nodes:
+        delete_embeddings(str(course_id), [str(n.id) for n in orphan_nodes])
+
     for node in orphan_nodes:
         db.delete(node)
 
@@ -353,7 +366,14 @@ def delete_node(course_id: UUID, node_id: UUID, db: Session = Depends(get_db)):
     if not node or node.course_id != course_id:
         raise HTTPException(status_code=404, detail="Node not found")
 
+    if node.title == "Miscellaneous" and node.node_type == "group":
+        raise HTTPException(status_code=422, detail="Cannot delete the Miscellaneous group node")
+
+    if node.depth == 0 and node.node_type == "group":
+        raise HTTPException(status_code=422, detail="Cannot delete the root topic node")
+
     db.delete(node)
+    delete_embeddings(str(course_id), [str(node_id)])
     db.flush()
     db.commit()
 
@@ -382,7 +402,7 @@ def create_edge(course_id: UUID, body: CreateEdgeRequest, db: Session = Depends(
     if existing:
         raise HTTPException(status_code=409, detail="Edge already exists")
 
-    edge = NodeEdge(parent_id=parent_uuid, child_id=child_uuid, edge_type=body.edge_type)
+    edge = NodeEdge(parent_id=parent_uuid, child_id=child_uuid, edge_category=body.edge_category, edge_label=body.edge_label)
     db.add(edge)
     db.flush()
     db.commit()

@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 type GraphNodeData = {
   label: string;
   depth: number;
+  nodeType: "concept" | "group" | "root";
   onRename: (id: string, title: string) => void;
 };
 
@@ -41,8 +42,16 @@ function GraphNodeInner({ id, data }: NodeProps<TopicNode>) {
   );
 
   return (
-    <div className="rounded-md border border-neutral-300 bg-white px-3 py-2 shadow-sm dark:border-neutral-600 dark:bg-neutral-800">
-      <Handle type="target" position={Position.Top} className="!bg-neutral-400" />
+    <div className={`rounded-md px-3 py-2 shadow-sm ${
+  data.nodeType === "root"
+    ? "border-2 border-purple-400 bg-purple-50 dark:border-purple-600 dark:bg-purple-950"
+    : data.nodeType === "group"
+    ? "border-2 border-dashed border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950"
+    : "border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800"
+}`}>
+      {data.nodeType !== "root" && (
+        <Handle type="target" position={Position.Top} className="!bg-neutral-400" />
+      )}
 
       {editing ? (
         <input
@@ -59,7 +68,11 @@ function GraphNodeInner({ id, data }: NodeProps<TopicNode>) {
         </div>
       )}
 
-      <div className="mt-0.5 text-xs text-neutral-400">depth {data.depth}</div>
+      {data.nodeType !== "root" && (
+        <div className="mt-0.5 text-xs text-neutral-400">
+          {data.nodeType === "group" ? "group" : `depth ${data.depth}`}
+        </div>
+      )}
 
       <Handle type="source" position={Position.Bottom} className="!bg-neutral-400" />
     </div>

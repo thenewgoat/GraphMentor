@@ -31,6 +31,7 @@ class EnrichService:
 
         nodes = self.db.query(Node).filter_by(course_id=course_id).all()
         threshold = settings.enrichment_word_threshold
+        logger.info("[Enrich] Starting enrichment for %d nodes (threshold=%d words)", len(nodes), threshold)
 
         enriched = 0
         skipped = 0
@@ -51,6 +52,7 @@ class EnrichService:
                 continue
 
             # Wikipedia search
+            logger.info("[Enrich] %d/%d: searching Wikipedia for '%s'...", enriched + skipped + 1, len(nodes), node.title)
             search_results = self._wiki_search(node.title, book_titles)
             if not search_results:
                 skipped += 1
@@ -67,6 +69,7 @@ class EnrichService:
             enriched += 1
 
         self.db.flush()
+        logger.info("[Enrich] Complete: %d enriched, %d skipped", enriched, skipped)
         return {"nodes_enriched": enriched, "nodes_skipped": skipped}
 
     def _wiki_search(self, title: str, book_titles: list[str]) -> str:

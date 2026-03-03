@@ -24,6 +24,8 @@ import type {
   OrganizeSuggestion,
 } from "./types";
 
+export type { Course };
+
 // API response types
 export interface GraphNode {
   id: string;
@@ -33,6 +35,7 @@ export interface GraphNode {
   child_ids: string[];
   depth: number;
   order_index: number;
+  node_type: "concept" | "group";
   supplementary_content: string | null;
   application_examples: Record<string, unknown> | null;
   pages: PageData[];
@@ -74,6 +77,12 @@ export async function uploadPdf(file: File, title: string, courseId?: string) {
 export const extractTopics = (courseId: string, documentId: string) =>
   request<Record<string, unknown>>(
     `/extract/topics/${courseId}?document_id=${documentId}`,
+    { method: "POST" }
+  );
+
+export const extractAllTopics = (courseId: string) =>
+  request<{ docs_extracted: number; nodes_created: number; edges_created: number }>(
+    `/extract/topics/${courseId}`,
     { method: "POST" }
   );
 
@@ -137,11 +146,12 @@ export const createEdge = (
   courseId: string,
   parentId: string,
   childId: string,
-  edgeType: string = "prerequisite",
+  edgeCategory: string = "dependency",
+  edgeLabel: string = "relates to",
 ) =>
   request<NodeEdge>(`/courses/${courseId}/edges`, {
     method: "POST",
-    body: JSON.stringify({ parent_id: parentId, child_id: childId, edge_type: edgeType }),
+    body: JSON.stringify({ parent_id: parentId, child_id: childId, edge_category: edgeCategory, edge_label: edgeLabel }),
   });
 
 export const deleteEdge = (courseId: string, parentId: string, childId: string) =>

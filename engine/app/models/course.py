@@ -16,6 +16,7 @@ class Course(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(255), nullable=False)
+    topic_title = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
     mastery_threshold = Column(Float, nullable=False, default=75.0)
     time_decay_lambda = Column(Float, nullable=False, default=0.1)

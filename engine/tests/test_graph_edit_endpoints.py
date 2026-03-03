@@ -77,6 +77,16 @@ class TestNodeCRUD:
 
         assert db.get(Node, node_id) is None
 
+    def test_delete_miscellaneous_node_blocked(self, client, db):
+        course = _make_course(db, "misc_block")
+        misc = Node(course_id=course.id, title="Miscellaneous", depth=1, order_index=999, node_type="group")
+        db.add(misc)
+        db.flush()
+
+        response = client.delete(f"/courses/{course.id}/nodes/{misc.id}")
+        assert response.status_code == 422
+        assert "Miscellaneous" in response.json()["detail"]
+
     def test_delete_node_cascades_edges(self, client, db):
         course = _make_course(db, "delete_cascade")
         node_a = Node(course_id=course.id, title="A", depth=0, order_index=0)
@@ -105,7 +115,7 @@ class TestEdgeCRUD:
 
         response = client.post(
             f"/courses/{course.id}/edges",
-            json={"parent_id": str(node_a.id), "child_id": str(node_b.id), "edge_type": "prerequisite"},
+            json={"parent_id": str(node_a.id), "child_id": str(node_b.id), "edge_category": "dependency", "edge_label": "builds upon"},
         )
         assert response.status_code == 201
         data = response.json()
@@ -119,7 +129,7 @@ class TestEdgeCRUD:
 
         response = client.post(
             f"/courses/{course.id}/edges",
-            json={"parent_id": str(node.id), "child_id": str(node.id), "edge_type": "prerequisite"},
+            json={"parent_id": str(node.id), "child_id": str(node.id), "edge_category": "dependency", "edge_label": "builds upon"},
         )
         assert response.status_code == 422
 
@@ -134,7 +144,7 @@ class TestEdgeCRUD:
 
         response = client.post(
             f"/courses/{course.id}/edges",
-            json={"parent_id": str(node_a.id), "child_id": str(node_b.id), "edge_type": "prerequisite"},
+            json={"parent_id": str(node_a.id), "child_id": str(node_b.id), "edge_category": "dependency", "edge_label": "builds upon"},
         )
         assert response.status_code == 409
 

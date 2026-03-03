@@ -25,6 +25,7 @@ class Node(Base):
     child_ids = Column(ARRAY(UUID(as_uuid=True)), default=list)
     depth = Column(Integer, nullable=False, default=0)
     order_index = Column(Integer, nullable=False, default=0)
+    node_type = Column(String(10), nullable=False, default="concept")
     application_examples = Column(JSONB, nullable=True)
     supplementary_content = Column(Text, nullable=True)
     created_at = Column(
@@ -58,6 +59,7 @@ class Node(Base):
     )
 
     __table_args__ = (
+        CheckConstraint("node_type IN ('concept', 'group')", name="chk_node_type"),
         Index("idx_nodes_course_id", "course_id"),
         Index("idx_nodes_depth", "course_id", "depth"),
     )
@@ -76,7 +78,8 @@ class NodeEdge(Base):
         ForeignKey("nodes.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    edge_type = Column(String(20), default="prerequisite")
+    edge_category = Column(String(20), nullable=False, default="association")
+    edge_label = Column(String(100), nullable=False, default="related")
 
     # Relationships
     parent_node = relationship(
@@ -89,8 +92,8 @@ class NodeEdge(Base):
     __table_args__ = (
         CheckConstraint("parent_id != child_id", name="chk_no_self_loop"),
         CheckConstraint(
-            "edge_type IN ('prerequisite', 'related', 'subtopic', 'method_of', 'motivation', 'application')",
-            name="chk_edge_type",
+            "edge_category IN ('dependency', 'association', 'hierarchy')",
+            name="chk_edge_category",
         ),
         Index("idx_node_edges_child", "child_id"),
     )

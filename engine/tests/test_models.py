@@ -53,7 +53,7 @@ class TestNode:
         db.add_all([parent, child])
         db.flush()
 
-        edge = NodeEdge(parent_id=parent.id, child_id=child.id, edge_type="prerequisite")
+        edge = NodeEdge(parent_id=parent.id, child_id=child.id, edge_category="dependency", edge_label="prerequisite for")
         db.add(edge)
         db.flush()
         assert edge.parent_id == parent.id

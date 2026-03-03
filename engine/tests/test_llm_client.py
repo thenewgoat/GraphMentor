@@ -23,6 +23,7 @@ class TestLLMClient:
         result = llm.extract_topics(
             chunks=[{"index": 0, "text": "Hello", "page_number": 1, "heading": None}],
             max_depth=3,
+            course_title="Test Course",
         )
 
         assert result == expected
@@ -34,7 +35,7 @@ class TestLLMClient:
 
     @patch("app.services.llm_client.OpenAI")
     def test_infer_dependencies_returns_parsed_json(self, mock_openai_class):
-        expected = {"edges": [{"from_title": "A", "to_title": "B", "edge_type": "prerequisite", "reasoning": "A is needed for B"}]}
+        expected = {"edges": [{"from_title": "A", "to_title": "B", "edge_category": "dependency", "edge_label": "builds upon", "reasoning": "A is needed for B"}]}
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = json.dumps(expected)
@@ -115,4 +116,22 @@ class TestLLMClient:
 
         llm = LLMClient(api_key="fake")
         result = llm.suggest_organization(graph_json=[{"title": "A"}, {"title": "B"}])
+        assert result == expected
+
+    @patch("app.services.llm_client.OpenAI")
+    def test_generate_topic_title_returns_parsed_json(self, mock_openai_class):
+        expected = {"topic_title": "Fundamental Algorithms and Data Structures"}
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps(expected)
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
+
+        llm = LLMClient(api_key="fake")
+        result = llm.generate_topic_title(
+            topics=[{"title": "Sorting", "depth": 1}, {"title": "Binary Search", "depth": 2}],
+            course_title="CS 101",
+        )
         assert result == expected

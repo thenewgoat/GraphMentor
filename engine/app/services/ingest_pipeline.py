@@ -1,4 +1,4 @@
-"""Stage 0: Upload PDF, extract pages, embed in ChromaDB, store in Postgres."""
+"""Stage 0: Upload PDF, extract pages, store in Postgres."""
 import hashlib
 import logging
 import shutil
@@ -7,25 +7,23 @@ from pathlib import Path
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.vector import get_chroma_client
 from app.models.course import Course
 from app.models.document import Document, Page
-from app.services.embedder import OpenAIEmbedder
 from app.services.extractors.slide_extractor import SlideExtractor
 
 logger = logging.getLogger(__name__)
 
 
 class IngestPipeline:
-    """Stage 0: Upload PDF, extract pages, embed, store."""
+    """Stage 0: Upload PDF, extract pages, store."""
 
     def __init__(self, db: Session, upload_dir: Path, openai_api_key: str):
         self.db = db
         self.upload_dir = upload_dir
         self.extractor = SlideExtractor()
-        self.embedder = OpenAIEmbedder(api_key=openai_api_key)
 
     def run(self, pdf_path: Path, title: str, course_id=None) -> dict:
+        logger.info("[Ingest] Starting upload for '%s' (%s)", title, pdf_path.name)
         pdf_bytes = pdf_path.read_bytes()
         pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
 
@@ -78,7 +76,9 @@ class IngestPipeline:
             document.file_path = str(dest)
 
             # Extract slides
+            logger.info("[Ingest] Extracting slides from PDF...")
             slides = self.extractor.extract(pdf_path)
+            logger.info("[Ingest] Extracted %d slides from PDF", len(slides))
 
             # Compute global_page offset
             max_global = (
@@ -105,36 +105,11 @@ class IngestPipeline:
             self.db.add_all(page_models)
             document.page_count = len(page_models)
             self.db.flush()
-
-            # Embed pages in ChromaDB
-            texts = []
-            for p in page_models:
-                prefix = f"[{p.slide_title}] " if p.slide_title else ""
-                texts.append(f"{prefix}{p.body}")
-
-            if texts:
-                embeddings = self.embedder.get_embeddings(texts)
-                client = get_chroma_client()
-                collection = client.get_or_create_collection(
-                    name=f"course_{str(course.id).replace('-', '')}_pages"
-                )
-                collection.add(
-                    ids=[str(p.id) for p in page_models],
-                    documents=[p.body for p in page_models],
-                    embeddings=embeddings,
-                    metadatas=[
-                        {
-                            "page_id": str(p.id),
-                            "document_id": str(document.id),
-                            "page_number": p.page_number,
-                            "global_page": p.global_page,
-                            "slide_title": p.slide_title or "",
-                        }
-                        for p in page_models
-                    ],
-                )
+            blank_count = len(slides) - len(page_models)
+            logger.info("[Ingest] Stored %d pages (%d blank slides skipped)", len(page_models), blank_count)
 
             # Mark complete
+            logger.info("[Ingest] Upload complete for '%s': %d pages stored", title, len(page_models))
             document.ingestion_status = "complete"
             if course.ingestion_status == "pending":
                 course.ingestion_status = "complete"

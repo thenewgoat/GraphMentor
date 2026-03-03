@@ -77,7 +77,7 @@ class TestGraphEndpoint:
         db.add_all([node_a, node_b])
         db.flush()
 
-        edge = NodeEdge(parent_id=node_a.id, child_id=node_b.id, edge_type="prerequisite")
+        edge = NodeEdge(parent_id=node_a.id, child_id=node_b.id, edge_category="dependency", edge_label="prerequisite for")
         db.add(edge)
 
         doc = Document(
@@ -104,7 +104,8 @@ class TestGraphEndpoint:
         data = response.json()
         assert len(data["nodes"]) == 2
         assert len(data["edges"]) == 1
-        assert data["edges"][0]["edge_type"] == "prerequisite"
+        assert data["edges"][0]["edge_category"] == "dependency"
+        assert data["edges"][0]["edge_label"] == "prerequisite for"
         # Check pages are included in node
         intro_node = next(n for n in data["nodes"] if n["title"] == "Intro")
         assert len(intro_node["pages"]) == 1
@@ -195,6 +196,13 @@ class TestDeleteDocumentEndpoint:
         db.add(page)
         db.flush()
 
+        # Create a node linked to the page so it becomes an orphan after doc deletion
+        node = Node(course_id=course.id, title="Orphan Topic", depth=1, order_index=0)
+        db.add(node)
+        db.flush()
+        db.add(NodePage(node_id=node.id, page_id=page.id))
+        db.flush()
+
         with patch("app.routers.courses.delete_embeddings") as mock_del:
             response = client.delete(f"/courses/{course.id}/documents/{doc.id}")
 
@@ -204,8 +212,11 @@ class TestDeleteDocumentEndpoint:
         assert db.query(Document).filter_by(id=doc.id).first() is None
         assert db.query(Page).filter_by(document_id=doc.id).all() == []
 
-        # Embeddings cleanup was called
-        mock_del.assert_called_once()
+        # Orphan node should be gone
+        assert db.query(Node).filter_by(id=node.id).first() is None
+
+        # Embeddings cleanup was called for orphan nodes
+        mock_del.assert_called_once_with(str(course.id), [str(node.id)])
 
     def test_delete_document_removes_orphan_nodes(self, client, db):
         course = Course(title="Orphan Course")
@@ -350,7 +361,7 @@ class TestDeleteCourseEndpoint:
         db.add(np)
         db.flush()
 
-        with patch("app.routers.courses.delete_embeddings") as mock_del:
+        with patch("app.routers.courses.delete_collection") as mock_del:
             response = client.delete(f"/courses/{course.id}")
 
         assert response.status_code == 204
@@ -360,9 +371,21 @@ class TestDeleteCourseEndpoint:
         assert db.query(Document).filter_by(course_id=course.id).all() == []
         assert db.query(Node).filter_by(course_id=course.id).all() == []
 
-        # Embeddings cleanup was called
-        mock_del.assert_called_once()
+        # Collection cleanup was called
+        mock_del.assert_called_once_with(str(course.id))
 
     def test_delete_course_not_found(self, client):
         response = client.delete(f"/courses/{uuid.uuid4()}")
         assert response.status_code == 404
+
+
+class TestCreateCourseEndpoint:
+    def test_create_course_creates_misc_node(self, client, db):
+        response = client.post("/courses", json={"title": "Test"})
+        assert response.status_code == 201
+        course_id = response.json()["id"]
+        misc = db.query(Node).filter_by(course_id=uuid.UUID(course_id), title="Miscellaneous").first()
+        assert misc is not None
+        assert misc.node_type == "group"
+        assert misc.depth == 1
+        assert misc.order_index == 999

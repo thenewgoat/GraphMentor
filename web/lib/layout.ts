@@ -4,6 +4,8 @@ import { Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 50;
+const ROOT_WIDTH = 220;
+const ROOT_HEIGHT = 44;
 
 const elk = new ELK();
 
@@ -11,11 +13,14 @@ export async function applyElkLayout(
   nodes: RFNode[],
   edges: RFEdge[],
 ): Promise<{ nodes: RFNode[]; edges: RFEdge[] }> {
-  const elkNodes: ElkNode[] = nodes.map((n) => ({
-    id: n.id,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
-  }));
+  const elkNodes: ElkNode[] = nodes.map((n) => {
+    const isRoot = n.data?.nodeType === "root";
+    return {
+      id: n.id,
+      width: isRoot ? ROOT_WIDTH : NODE_WIDTH,
+      height: isRoot ? ROOT_HEIGHT : NODE_HEIGHT,
+    };
+  });
 
   const elkEdges: ElkExtendedEdge[] = edges.map((e) => ({
     id: e.id,
@@ -28,9 +33,10 @@ export async function applyElkLayout(
     layoutOptions: {
       "elk.algorithm": "layered",
       "elk.direction": "DOWN",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "80",
-      "elk.spacing.nodeNode": "40",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+      "elk.spacing.nodeNode": "50",
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+      "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
     },
     children: elkNodes,
     edges: elkEdges,
