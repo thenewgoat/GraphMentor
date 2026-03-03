@@ -70,18 +70,22 @@ async function doExtractAll(
   onDone: () => void,
 ) {
   emit({ extractAllCourseId: courseId, error: null, progress: null });
-  let extracted = 0;
+  let completed = 0;
 
-  for (const doc of docs) {
-    emit({ progress: `Extracting ${extracted + 1}/${docs.length}: ${doc.title}` });
+  emit({ progress: `Extracting 0/${docs.length}...` });
+
+  const promises = docs.map(async (doc) => {
     try {
       await extractTopics(courseId, doc.id);
-      extracted++;
     } catch (err) {
       emit({ error: err instanceof Error ? err.message : `Extraction failed: ${doc.title}` });
-      break;
+    } finally {
+      completed++;
+      emit({ progress: `Extracting ${completed}/${docs.length}...` });
     }
-  }
+  });
+
+  await Promise.all(promises);
 
   emit({ extractAllCourseId: null, progress: null });
   onDone();

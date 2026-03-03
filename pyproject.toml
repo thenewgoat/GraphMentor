@@ -11,7 +11,7 @@ dev = [
 ]
 
 [tool.poe.tasks.serve]
-shell = "cd engine && unset VIRTUAL_ENV && uv run uvicorn app.main:app --reload"
+shell = "cd engine && unset VIRTUAL_ENV && uv run uvicorn app.main:app --reload --reload-exclude '.venv'"
 help = "Start the FastAPI dev server"
 
 [tool.poe.tasks.test]

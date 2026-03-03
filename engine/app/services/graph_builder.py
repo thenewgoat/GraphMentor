@@ -638,7 +638,7 @@ class GraphBuilder:
                 continue
             try:
                 result = collection.get(ids=[topic["title"]], include=["embeddings", "metadatas"])
-                if result["ids"] and result["embeddings"]:
+                if len(result["ids"]) > 0 and len(result["embeddings"]) > 0:
                     emb = result["embeddings"][0]
                     meta = result["metadatas"][0] if result["metadatas"] else {}
                     collection.delete(ids=[topic["title"]])
