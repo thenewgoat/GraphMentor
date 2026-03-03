@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     search_provider: str = "wikipedia"
     enrichment_word_threshold: int = 100
     embedding_merge_threshold: float = 0.85
+    game_path: str = "../iloveMons"
 
     model_config = {"env_file": ["../.env", ".env"], "env_file_encoding": "utf-8"}
 

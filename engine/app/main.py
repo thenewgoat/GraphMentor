@@ -8,6 +8,7 @@ from app.db.vector import get_chroma_client
 from app.routers.ingest import router as ingest_router
 from app.routers.extract import router as extract_router
 from app.routers.courses import router as courses_router
+from app.routers.game import router as game_router
 
 app = FastAPI(title="GraphMentor Engine", version="0.1.0")
 app.add_middleware(
@@ -19,6 +20,7 @@ app.add_middleware(
 app.include_router(ingest_router)
 app.include_router(extract_router)
 app.include_router(courses_router)
+app.include_router(game_router)
 
 
 @app.get("/health")

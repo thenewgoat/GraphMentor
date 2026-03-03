@@ -25,6 +25,19 @@ export default function NodeSidebar({
   onGraphChange,
 }: NodeSidebarProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [gameStatus, setGameStatus] = useState<string | null>(null);
+
+  const handleLaunchGame = useCallback(async () => {
+    try {
+      setGameStatus("launching");
+      const result = await api.launchGame(courseId, node.id);
+      setGameStatus(result.status);
+      setTimeout(() => setGameStatus(null), 3000);
+    } catch {
+      setGameStatus("error");
+      setTimeout(() => setGameStatus(null), 3000);
+    }
+  }, [courseId, node.id]);
 
   const prerequisites = allEdges
     .filter((e) => e.child_id === node.id)
@@ -112,6 +125,22 @@ export default function NodeSidebar({
             {node.supplementary_content}
           </div>
         </div>
+      )}
+
+      {node.node_type === "concept" && (
+        <button
+          onClick={handleLaunchGame}
+          disabled={gameStatus === "launching"}
+          className="mb-2 w-full rounded bg-emerald-50 px-3 py-1.5 text-sm text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-900/20 dark:text-emerald-400"
+        >
+          {gameStatus === "launching"
+            ? "Launching..."
+            : gameStatus === "already_running"
+              ? "Game Already Running"
+              : gameStatus === "error"
+                ? "Launch Failed"
+                : "Start Quiz"}
+        </button>
       )}
 
       <button

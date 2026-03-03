@@ -1,5 +1,5 @@
 /** API client — typed fetch wrappers for all backend endpoints. */
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -156,3 +156,9 @@ export const createEdge = (
 
 export const deleteEdge = (courseId: string, parentId: string, childId: string) =>
   request<void>(`/courses/${courseId}/edges/${parentId}/${childId}`, { method: "DELETE" });
+
+// Game
+export const launchGame = (courseId: string, nodeId: string) =>
+  request<{ status: string }>(`/game/launch/${courseId}/${nodeId}`, {
+    method: "POST",
+  });
